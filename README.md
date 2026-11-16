@@ -67,6 +67,8 @@ Docker Desktop은 내 PC에서 실행할 때 쓰며, 카카오 챗봇이 접속�
 
 Render 무료 웹 서비스는 유휴 시 중지될 수 있고 무료 PostgreSQL에는 보존 기간 제한이 있어 정시 알림과 장기 데이터 보관 용도로는 적합하지 않습니다. [Render 무료 플랜 안내](https://render.com/docs/free), [Docker 배포 안내](https://render.com/docs/docker), [Postgres 연결 안내](https://render.com/docs/postgresql-creating-connecting).
 
+`kakaoBot` 배포에는 `.github/workflows/keepalive.yml`이 10분마다 공개 `/actuator/health` 주소를 호출합니다. 서버 내부 예약 작업과 달리 외부에서 호출하므로 유휴 중지 위험을 줄이지만, GitHub 예약 작업 지연·중단이나 Render 재시작이 있으면 정시 실행을 보장하지 않습니다. 공개 저장소는 60일 동안 활동이 없으면 예약 워크플로가 자동으로 꺼질 수 있습니다. [GitHub 예약 작업 안내](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows).
+
 
 ## 카카오톡 챗봇 관리자센터 베타 스킬 연결
 
@@ -162,6 +164,7 @@ Flyway는 시작 시 `V1__initial_schema.sql`을 적용하며 Hibernate는 스�
 ## 품질 및 알려진 범위
 
 `./gradlew test`에는 메뉴 중복, 재추첨, 참여자 메뉴 변경/취소, 잘못된 토큰, 마감 뒤 변경 금지 테스트가 포함됩니다. 원격 Supabase 계정이나 카카오톡 일반 단체방 메시지 API는 요구하지 않습니다. 참가자는 표시 이름을 직접 입력하며 계정 인증은 없습니다. 앱 인스턴스 재시작 뒤에도 방장 토큰은 OWNER_SECRET이 유지되는 동안 재생성할 수 있지만, 브라우저 데이터를 지우면 원래 만든 사람 확인 기능은 없습니다. 이 초기판은 방장 복구 UI, 속도 제한, 계정 로그인, 링크 만료를 제공하지 않으므로 신뢰하는 소규모 방에서 사용하세요.
+
 
 
 

@@ -2,10 +2,12 @@ package kr.jeommechurial.service;
 
 import kr.jeommechurial.core.*;
 import java.time.Instant;
+import java.time.LocalTime;
 import java.util.*;
 
 public interface RoundRepository {
-    LunchRound create(UUID ownerId, String title, String roomName, String joinTokenHash, Instant drawAt);
+    LunchRound create(UUID ownerId, String title, String roomName, String joinTokenHash, Instant drawAt,
+                      String officeAddress, LocalTime lunchStartTime, LocalTime lunchEndTime);
     Optional<LunchRound> find(UUID id);
     List<LunchRound> findDueOpen(Instant now);
     List<MenuEntry> entries(UUID roundId);

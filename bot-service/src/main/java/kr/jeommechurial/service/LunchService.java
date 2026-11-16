@@ -25,7 +25,17 @@ public class LunchService {
     }
     LunchService(RoundRepository repository,String ownerSecret,Clock clock){this.repository=repository;this.ownerSecret=ownerSecret.getBytes(StandardCharsets.UTF_8);this.clock=clock;}
     @Transactional public CreatedRound create(String title, String roomName) {
-        UUID owner=UUID.randomUUID(); String join=token(); LunchRound r=repository.create(owner,clean(title,80),clean(roomName,80),hash(join),nextDrawAt(clock.instant()));
+        return createRound(title, roomName, null, null, null);
+    }
+    @Transactional public CreatedRound create(String title, String roomName, String officeAddress,
+                                              LocalTime lunchStartTime, LocalTime lunchEndTime) {
+        String address=clean(officeAddress,160);
+        if(lunchStartTime==null||lunchEndTime==null||!lunchEndTime.isAfter(lunchStartTime))
+            throw new IllegalArgumentException("점심 종료 시간은 시작 시간보다 늦어야 해요.");
+        return createRound(title,roomName,address,lunchStartTime,lunchEndTime);
+    }
+    private CreatedRound createRound(String title,String roomName,String address,LocalTime start,LocalTime end) {
+        UUID owner=UUID.randomUUID(); String join=token(); LunchRound r=repository.create(owner,clean(title,80),clean(roomName,80),hash(join),nextDrawAt(clock.instant()),address,start,end);
         return new CreatedRound(r.id(),owner,r.title(),r.roomName(),join,ownerToken(r.id()));
     }
     @Transactional public RoundView start(UUID id,String token){requireOwner(id,token);drawIfDue(id);return view(id);}
@@ -42,7 +52,7 @@ public class LunchService {
     private void validateJoin(UUID id,String token){LunchRound r=repository.find(id).orElseThrow(()->new NoSuchElementException("방을 찾을 수 없어요."));if(token==null||!MessageDigest.isEqual(hash(token).getBytes(StandardCharsets.UTF_8),r.joinTokenHash().getBytes(StandardCharsets.UTF_8)))throw new SecurityException("참여 링크가 올바르지 않아요.");}
     private void requireOpen(UUID id){LunchRound r=repository.find(id).orElseThrow();if(r.status()!=RoundStatus.OPEN||r.drawAt()!=null&&!clock.instant().isBefore(r.drawAt()))throw new IllegalStateException("메뉴 입력은 오전 10시 44분까지예요. 룰렛 결과를 기다려주세요.");}
     private void drawIfDue(UUID id){LunchRound r=repository.find(id).orElseThrow();if(r.status()!=RoundStatus.OPEN||r.drawAt()==null||clock.instant().isBefore(r.drawAt()))return;List<String> choices=repository.candidates(id);if(choices.isEmpty()){repository.close(id,r.version());return;}String winner=choices.get(random.nextInt(choices.size()));repository.draw(id,winner,r.version(),false);}
-    private RoundView view(UUID id){LunchRound r=repository.find(id).orElseThrow(()->new NoSuchElementException("방을 찾을 수 없어요."));List<MenuEntry> anonymous=repository.entries(id).stream().map(e->new MenuEntry(e.id(),e.roundId(),e.participantId(),"익명",e.menu(),e.createdAt(),e.updatedAt())).toList();return new RoundView(id,r.title(),r.roomName(),r.status(),r.winner(),anonymous,repository.candidates(id),r.createdAt(),r.updatedAt(),r.drawAt());}
+    private RoundView view(UUID id){LunchRound r=repository.find(id).orElseThrow(()->new NoSuchElementException("방을 찾을 수 없어요."));List<MenuEntry> anonymous=repository.entries(id).stream().map(e->new MenuEntry(e.id(),e.roundId(),e.participantId(),"익명",e.menu(),e.createdAt(),e.updatedAt())).toList();return new RoundView(id,r.title(),r.roomName(),r.status(),r.winner(),anonymous,repository.candidates(id),r.createdAt(),r.updatedAt(),r.drawAt(),r.officeAddress(),r.lunchStartTime(),r.lunchEndTime());}
     static Instant nextDrawAt(Instant now){ZonedDateTime local=now.atZone(SEOUL);ZonedDateTime draw=local.toLocalDate().atTime(10,45).atZone(SEOUL);return local.isBefore(draw)?draw.toInstant():draw.plusDays(1).toInstant();}
     private String token(){byte[] b=new byte[24];random.nextBytes(b);StringBuilder s=new StringBuilder();for(byte v:b)s.append(ALPHABET.charAt(Byte.toUnsignedInt(v)%ALPHABET.length()));return s.toString();}
     private static String hash(String s){try{return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(s.getBytes(StandardCharsets.UTF_8)));}catch(Exception e){throw new IllegalStateException(e);}}

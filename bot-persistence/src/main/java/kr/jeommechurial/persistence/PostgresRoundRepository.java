@@ -7,6 +7,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
+import java.time.LocalTime;
 import java.util.*;
 
 @Repository @Transactional
@@ -14,7 +15,7 @@ class PostgresRoundRepository implements RoundRepository {
     private final RoundJpa rounds; private final MenuJpa menus;
     @PersistenceContext private EntityManager entityManager;
     PostgresRoundRepository(RoundJpa rounds,MenuJpa menus){this.rounds=rounds;this.menus=menus;}
-    public LunchRound create(UUID owner,String title,String room,String tokenHash,Instant drawAt){RoundEntity e=new RoundEntity();e.ownerId=owner;e.title=title;e.roomName=room;e.joinTokenHash=tokenHash;e.drawAt=drawAt;return model(rounds.save(e));}
+    public LunchRound create(UUID owner,String title,String room,String tokenHash,Instant drawAt,String officeAddress,LocalTime lunchStartTime,LocalTime lunchEndTime){RoundEntity e=new RoundEntity();e.ownerId=owner;e.title=title;e.roomName=room;e.joinTokenHash=tokenHash;e.drawAt=drawAt;e.officeAddress=officeAddress;e.lunchStartTime=lunchStartTime;e.lunchEndTime=lunchEndTime;return model(rounds.save(e));}
     @Transactional(readOnly=true) public Optional<LunchRound> find(UUID id){return rounds.findById(id).map(PostgresRoundRepository::model);}
     @Transactional(readOnly=true) public List<LunchRound> findDueOpen(Instant now){return rounds.findByStatusAndDrawAtLessThanEqual("OPEN",now).stream().map(PostgresRoundRepository::model).toList();}
     @Transactional(readOnly=true) public List<MenuEntry> entries(UUID id){return menus.findByRoundIdOrderByCreatedAtAsc(id).stream().map(PostgresRoundRepository::model).toList();}
@@ -23,7 +24,7 @@ class PostgresRoundRepository implements RoundRepository {
     @Transactional(readOnly=true) public List<String> candidates(UUID id){return menus.findByRoundIdOrderByCreatedAtAsc(id).stream().map(MenuEntity::getMenu).filter(Objects::nonNull).collect(java.util.stream.Collectors.toMap(v->v.strip().toLowerCase(Locale.ROOT),v->v.strip(),(first,ignored)->first,TreeMap::new)).values().stream().toList();}
     public boolean draw(UUID id,String winner,long expected,boolean reroll){int n=entityManager.createNativeQuery("update lunch_rounds set winner=:winner,status='DRAWN',version=version+1,updated_at=now() where id=:id and version=:version and status=:status").setParameter("winner",winner).setParameter("id",id).setParameter("version",expected).setParameter("status",reroll?"DRAWN":"OPEN").executeUpdate();if(n==1)entityManager.clear();return n==1;}
     public boolean close(UUID id,long expected){int n=entityManager.createNativeQuery("update lunch_rounds set status='CLOSED',version=version+1,updated_at=now() where id=:id and version=:version and status<>'CLOSED'").setParameter("id",id).setParameter("version",expected).executeUpdate();if(n==1)entityManager.clear();return n==1;}
-    private static LunchRound model(RoundEntity e){return new LunchRound(e.id,e.ownerId,e.title,e.roomName,e.joinTokenHash,RoundStatus.valueOf(e.status),e.winner,e.version,e.createdAt,e.updatedAt,e.drawAt);}
+    private static LunchRound model(RoundEntity e){return new LunchRound(e.id,e.ownerId,e.title,e.roomName,e.joinTokenHash,RoundStatus.valueOf(e.status),e.winner,e.version,e.createdAt,e.updatedAt,e.drawAt,e.officeAddress,e.lunchStartTime,e.lunchEndTime);}
     private static MenuEntry model(MenuEntity e){return new MenuEntry(e.id,e.roundId,e.participantId,e.participantName,e.menu,e.createdAt,e.updatedAt);}
 }
 

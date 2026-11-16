@@ -4,7 +4,7 @@
 
 ## 포함 기능
 
-- 방 생성과 방장 기능 토큰 발급
+- 방 생성 시 회사 주소와 점심 시작·종료 시간 등록, 방장 기능 토큰 발급
 - 오전 10시 44분까지 익명 메뉴 등록·변경·취소, 10시 45분 자동 추첨
 - 전체 참여 목록과 중복 메뉴 제거
 - 중복 제거된 후보마다 동일한 확률을 주는 추첨과 #룰렛돌리기 결과 애니메이션
@@ -39,7 +39,7 @@ $env:OWNER_SECRET='replace-with-a-long-random-secret'
 .\gradlew.bat :bot-app:bootRun
 ```
 
-브라우저에서 `http://localhost:8080/demo.html`을 열면 카카오톡 같은 대화 화면에서 방장이 회사 주소와 점심 시작·종료 시간을 등록하고, 익명 메뉴 입력과 룰렛을 시연할 수 있습니다. 이는 실제 카카오톡 연결이 아닌 가상 대화입니다. `http://localhost:8080`에서 실제 방을 만들고 참여 링크를 카카오톡 단체방에 공유할 수 있습니다. Supabase 사용 시 프로젝트의 PostgreSQL 연결 문자열과 DB 인증 정보를 환경 변수로 설정하세요. 배포 환경은 SSL을 포함한 Supabase 연결 문자열을 사용하고 `OWNER_SECRET`을 32자 이상의 임의 비밀값으로 설정하세요. `.env`는 저장소에 커밋하지 마세요.
+브라우저에서 `http://localhost:8080/demo.html`을 열면 카카오톡 같은 대화 화면에서 방장이 회사 주소와 점심 시작·종료 시간을 등록하고, 익명 메뉴 입력과 룰렛을 시연할 수 있습니다. 이는 실제 카카오톡 연결이 아닌 가상 대화입니다. `http://localhost:8080`에서 실제 방을 만들 때 회사 주소와 점심 시작·종료 시간을 저장하고 참여 링크를 카카오톡 단체방에 공유할 수 있습니다. Supabase 사용 시 프로젝트의 PostgreSQL 연결 문자열과 DB 인증 정보를 환경 변수로 설정하세요. 배포 환경은 SSL을 포함한 Supabase 연결 문자열을 사용하고 `OWNER_SECRET`을 32자 이상의 임의 비밀값으로 설정하세요. `.env`는 저장소에 커밋하지 마세요.
 
 ## 공개 배포: Render + PostgreSQL
 
@@ -146,7 +146,7 @@ $env:KAKAO_LUNCH_EVENT_NAME="lunch_recommendation"
 
 | 동작 | 요청 |
 |---|---|
-| 방 생성 | `POST /api/rounds` `{ "title":"오늘 점심", "roomName":"점심팟" }` |
+| 방 생성 | `POST /api/rounds` `{ "title":"오늘 점심", "roomName":"점심팟", "officeAddress":"서울 강남구 테헤란로 123", "lunchStartTime":"12:00", "lunchEndTime":"13:00" }` |
 | 목록/결과 | `GET /api/rounds/{id}?token=...` |
 | 메뉴 등록/변경 | `PUT /api/rounds/{id}/entries?token=...` `{ "menu":"김치찌개" }` |
 | 내 메뉴 취소 | `DELETE /api/rounds/{id}/entries/me?token=...` |

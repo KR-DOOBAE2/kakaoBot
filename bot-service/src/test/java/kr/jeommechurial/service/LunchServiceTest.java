@@ -66,14 +66,23 @@ class LunchServiceTest {
         CreatedRound r = service.create("점심", "우리방");
         assertThrows(SecurityException.class, () -> service.get(r.id(), "wrong"));
     }
+    @Test void officeAddressAndMealTimesAreSavedWithRound() {
+        CreatedRound r = service.create("점심", "우리방", "서울 강남구 테헤란로 123", LocalTime.NOON, LocalTime.of(13, 0));
+        RoundView view = service.get(r.id(), r.joinToken());
+        assertEquals("서울 강남구 테헤란로 123", view.officeAddress());
+        assertEquals(LocalTime.NOON, view.lunchStartTime());
+        assertEquals(LocalTime.of(13, 0), view.lunchEndTime());
+        assertThrows(IllegalArgumentException.class, () -> service.create("점심", "우리방", "서울", LocalTime.of(13, 0), LocalTime.NOON));
+    }
 
     static class FakeRepository implements RoundRepository {
         final Map<UUID, LunchRound> rounds = new HashMap<>();
         final Map<UUID, List<MenuEntry>> entries = new HashMap<>();
         int drawCount;
-        public LunchRound create(UUID owner, String title, String room, String hash, Instant drawAt) {
+        public LunchRound create(UUID owner, String title, String room, String hash, Instant drawAt,
+                                 String officeAddress, LocalTime lunchStartTime, LocalTime lunchEndTime) {
             UUID id = UUID.randomUUID();
-            LunchRound round = new LunchRound(id, owner, title, room, hash, RoundStatus.OPEN, null, 0, Instant.now(), Instant.now(), drawAt);
+            LunchRound round = new LunchRound(id, owner, title, room, hash, RoundStatus.OPEN, null, 0, Instant.now(), Instant.now(), drawAt, officeAddress, lunchStartTime, lunchEndTime);
             rounds.put(id, round); entries.put(id, new ArrayList<>()); return round;
         }
         public Optional<LunchRound> find(UUID id) { return Optional.ofNullable(rounds.get(id)); }
@@ -89,13 +98,13 @@ class LunchServiceTest {
         public boolean draw(UUID id, String winner, long version, boolean reroll) {
             LunchRound r = rounds.get(id);
             if (r.version() != version || r.status() != (reroll ? RoundStatus.DRAWN : RoundStatus.OPEN)) return false;
-            rounds.put(id, new LunchRound(id, r.ownerId(), r.title(), r.roomName(), r.joinTokenHash(), RoundStatus.DRAWN, winner, version + 1, r.createdAt(), Instant.now(), r.drawAt()));
+            rounds.put(id, new LunchRound(id, r.ownerId(), r.title(), r.roomName(), r.joinTokenHash(), RoundStatus.DRAWN, winner, version + 1, r.createdAt(), Instant.now(), r.drawAt(), r.officeAddress(), r.lunchStartTime(), r.lunchEndTime()));
             drawCount++; return true;
         }
         public boolean close(UUID id, long version) {
             LunchRound r = rounds.get(id);
             if (r.version() != version || r.status() == RoundStatus.CLOSED) return false;
-            rounds.put(id, new LunchRound(id, r.ownerId(), r.title(), r.roomName(), r.joinTokenHash(), RoundStatus.CLOSED, r.winner(), version + 1, r.createdAt(), Instant.now(), r.drawAt()));
+            rounds.put(id, new LunchRound(id, r.ownerId(), r.title(), r.roomName(), r.joinTokenHash(), RoundStatus.CLOSED, r.winner(), version + 1, r.createdAt(), Instant.now(), r.drawAt(), r.officeAddress(), r.lunchStartTime(), r.lunchEndTime()));
             return true;
         }
     }

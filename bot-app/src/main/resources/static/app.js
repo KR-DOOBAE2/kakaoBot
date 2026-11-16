@@ -24,6 +24,7 @@ function showRound(data) {
   roundData = data;
   $('#create').classList.add('hidden'); $('#roomView').classList.remove('hidden');
   $('#roundTitle').textContent = data.title; $('#roomName').textContent = `💬 ${data.roomName}`;
+  $('#officeDetails').textContent = data.officeAddress ? `📍 ${data.officeAddress} · 🍽️ 점심 ${data.lunchStartTime}~${data.lunchEndTime}` : '회사 주소와 식사 시간이 설정되지 않은 이전 방이에요.';
   $('#status').textContent = { OPEN: '모집 중', DRAWN: '추첨 완료', CLOSED: '모집 마감' }[data.status];
   $('#schedule').textContent = data.drawAt ? `${drawTime(data)} 공개 · 공개 직전까지 익명 메뉴 입력` : '이전 방식의 방 · 새 점심방을 만들어주세요';
   $('#count').textContent = `${data.candidates.length}개 메뉴 후보`;
@@ -45,7 +46,10 @@ function animate(data) {
 async function refresh() { showRound(await api(`/api/rounds/${roundId}?token=${encodeURIComponent(joinToken)}`, { headers: { 'X-Participant-Id': participantId() } })); }
 $('#createBtn').onclick = async () => {
   try {
-    const data = await api('/api/rounds', { method: 'POST', body: JSON.stringify({ roomName: $('#room').value || '우리 점심팟', title: $('#title').value || '오늘 점심 메뉴 모집' }) });
+    const officeAddress = $('#officeAddress').value.trim(), lunchStartTime = $('#lunchStart').value, lunchEndTime = $('#lunchEnd').value;
+    if (!officeAddress) throw Error('회사 주소를 입력해주세요.');
+    if (!lunchStartTime || !lunchEndTime || lunchEndTime <= lunchStartTime) throw Error('점심 종료 시간은 시작 시간보다 늦어야 해요.');
+    const data = await api('/api/rounds', { method: 'POST', body: JSON.stringify({ roomName: $('#room').value || '우리 점심팟', title: $('#title').value || '오늘 점심 메뉴 모집', officeAddress, lunchStartTime, lunchEndTime }) });
     roundId = data.id; joinToken = data.joinToken; shareUrl = data.joinUrl;
     sessionStorage.setItem(`jm-join-${roundId}`, joinToken);
     history.replaceState({}, '', `/r/${roundId}`); await refresh();
@@ -73,4 +77,3 @@ setInterval(() => { if (roundId && joinToken) refresh().catch(() => {}); }, 1500
   history.replaceState({}, '', location.pathname);
   try { await refresh(); } catch (error) { toast(error.message); }
 })();
-

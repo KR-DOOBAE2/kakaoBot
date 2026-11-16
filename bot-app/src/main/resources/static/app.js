@@ -1,5 +1,6 @@
 const $ = selector => document.querySelector(selector);
 let roundId, joinToken, shareUrl, roundData, spinning = false, revealed = false;
+let restaurantLoading = false, restaurantLoaded = false;
 const emojis = ['🍜', '🍚', '🥟', '🍛', '🍣', '🍲', '🥗', '🍔'];
 function toast(message) { const el = $('#toast'); el.textContent = message; el.classList.add('on'); setTimeout(() => el.classList.remove('on'), 2600); }
 function participantId() { const key = `jm-p-${roundId}`; let id = localStorage.getItem(key); if (!id) { id = crypto.randomUUID(); localStorage.setItem(key, id); } return id; }
@@ -24,7 +25,7 @@ function showRound(data) {
   roundData = data;
   $('#create').classList.add('hidden'); $('#roomView').classList.remove('hidden');
   $('#roundTitle').textContent = data.title; $('#roomName').textContent = `💬 ${data.roomName}`;
-  $('#officeDetails').textContent = data.officeAddress ? `📍 ${data.officeAddress} · 🍽️ 점심 ${data.lunchStartTime}~${data.lunchEndTime}` : '회사 주소와 식사 시간이 설정되지 않은 이전 방이에요.';
+  $('#officeDetails').textContent = data.officeAddress ? `📍 ${data.officeAddress} · 🍽️ 점심 ${String(data.lunchStartTime).slice(0,5)}~${String(data.lunchEndTime).slice(0,5)}` : '회사 주소와 식사 시간이 설정되지 않은 이전 방이에요.';
   $('#status').textContent = { OPEN: '모집 중', DRAWN: '추첨 완료', CLOSED: '모집 마감' }[data.status];
   $('#schedule').textContent = data.drawAt ? `${drawTime(data)} 공개 · 공개 직전까지 익명 메뉴 입력` : '이전 방식의 방 · 새 점심방을 만들어주세요';
   $('#count').textContent = `${data.candidates.length}개 메뉴 후보`;
@@ -33,7 +34,28 @@ function showRound(data) {
   $('#menuForm').classList.toggle('hidden', !accepting); $('#cancelBtn').classList.toggle('hidden', !accepting);
   updateCountdown();
   if (data.winner && !revealed && !spinning) animate(data);
+  $('#restaurantCard').classList.toggle('hidden', !data.winner);
+  if (data.winner && !restaurantLoaded && !restaurantLoading) loadRestaurants();
 }
+async function loadRestaurants() {
+  if (restaurantLoading || !roundId || !joinToken) return;
+  restaurantLoading = true;
+  $('#restaurantStatus').textContent = '회사 주변 식당을 찾고 있어요…';
+  $('#restaurantRetry').classList.add('hidden');
+  try {
+    const result = await api(`/api/rounds/${roundId}/restaurants?token=${encodeURIComponent(joinToken)}`);
+    $('#restaurantStatus').textContent = `🥚 ${result.winningMenu} · 추천 식당 ${result.restaurants.length}곳`;
+    $('#restaurantList').innerHTML = result.restaurants.map((p, i) => {
+      const safeUrl = /^https:\/\//i.test(p.placeUrl || '') ? escapeHtml(p.placeUrl) : '';
+      return `<div class="restaurant"><div class="restaurant-rank">${i === 0 ? '👑' : i + 1}</div><div class="restaurant-main"><strong>${escapeHtml(p.name)}</strong>${p.recentlyFound ? '<span class="recent">최근 발견</span>' : ''}<p>${escapeHtml(p.address || '주소 정보 없음')}</p><small>${p.distanceMeters}m · 메뉴 언급 ${p.menuMentions}회 · 평가 ${p.ratingScore > 0 ? '+' : ''}${p.ratingScore}</small>${safeUrl ? `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer">지도에서 보기 ↗</a>` : ''}</div></div>`;
+    }).join('');
+    restaurantLoaded = true;
+  } catch (error) {
+    $('#restaurantStatus').textContent = error.message;
+    $('#restaurantRetry').classList.remove('hidden');
+  } finally { restaurantLoading = false; }
+}
+$('#restaurantRetry').onclick = loadRestaurants;
 function animate(data) {
   if (spinning || !data.winner) return;
   spinning = true; $('#winner').classList.remove('hidden'); $('#winner').classList.add('spinning');
@@ -77,3 +99,4 @@ setInterval(() => { if (roundId && joinToken) refresh().catch(() => {}); }, 1500
   history.replaceState({}, '', location.pathname);
   try { await refresh(); } catch (error) { toast(error.message); }
 })();
+

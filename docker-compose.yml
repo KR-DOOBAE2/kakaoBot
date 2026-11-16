@@ -1,0 +1,20 @@
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: jeommechurial-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: jeommechurial
+      POSTGRES_USER: jeommechurial
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:?Set DATABASE_PASSWORD in your environment or .env}
+    ports:
+      - "5432:5432"
+    volumes:
+      - jeommechurial-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jeommechurial -d jeommechurial"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+volumes:
+  jeommechurial-data:

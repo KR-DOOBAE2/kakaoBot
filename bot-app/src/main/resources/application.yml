@@ -1,0 +1,31 @@
+spring:
+  application:
+    name: jeommechurial-bot
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/jeommechurial}
+    username: ${DATABASE_USERNAME:jeommechurial}
+    password: ${DATABASE_PASSWORD}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate.jdbc.time_zone: UTC
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+server:
+  port: ${PORT:8080}
+  forward-headers-strategy: framework
+management:
+  endpoints.web.exposure.include: health,info
+app:
+  owner-secret: ${OWNER_SECRET}
+  kakao-skill-secret: ${KAKAO_SKILL_SECRET:}
+  public-base-url: ${PUBLIC_BASE_URL:}
+  kakao-rest-api-key: ${KAKAO_REST_API_KEY:}
+  kakao-bot-id: ${KAKAO_BOT_ID:}
+  kakao-lunch-event-name: ${KAKAO_LUNCH_EVENT_NAME:lunch_recommendation}
+  lunch-scheduler-delay-ms: ${LUNCH_SCHEDULER_DELAY_MS:60000}
+
+

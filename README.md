@@ -29,10 +29,11 @@ bot-app         Spring Boot 실행 앱, 정적 모바일 웹
 
 ```powershell
 Copy-Item .env.example .env
+$env:DATABASE_PASSWORD='replace-with-a-unique-database-password'
 docker compose up -d db
 $env:DATABASE_URL='jdbc:postgresql://localhost:5432/jeommechurial'
 $env:DATABASE_USERNAME='jeommechurial'
-$env:DATABASE_PASSWORD='jeommechurial'
+$env:DATABASE_PASSWORD='replace-with-a-unique-database-password'
 $env:OWNER_SECRET='replace-with-a-long-random-secret'
 .\gradlew.bat test
 .\gradlew.bat :bot-app:bootRun
@@ -44,7 +45,7 @@ $env:OWNER_SECRET='replace-with-a-long-random-secret'
 
 Docker Desktop은 내 PC에서 실행할 때 쓰며, 카카오 챗봇이 접속할 공개 HTTPS 주소를 얻으려면 서버 배포가 필요합니다. 이 저장소의 `Dockerfile`을 Render 웹 서비스에 배포하면 `https://서비스이름.onrender.com` 주소가 제공됩니다.
 
-1. 이 프로젝트를 GitHub의 **비공개 저장소**에 올립니다. `.env`와 API 키는 올리지 마세요. Git을 사용한다면 프로젝트 폴더에서 `git init`, `git add .`, `git commit -m "Initial deploy"` 후 GitHub가 표시하는 원격 저장소 연결·push 명령을 실행합니다.
+1. 이 프로젝트를 GitHub 저장소에 올립니다. `.env`와 API 키는 올리지 마세요. Git을 사용한다면 프로젝트 폴더에서 `git init`, `git add .`, `git commit -m "Initial deploy"` 후 GitHub가 표시하는 원격 저장소 연결·push 명령을 실행합니다.
 2. [Render 대시보드](https://dashboard.render.com/)에서 **New → Postgres**를 만들어 같은 지역의 데이터베이스를 준비합니다. 운영 용도라면 장기간 유지되는 요금제를 선택합니다.
 3. **New → Web Service → GitHub 저장소 연결**에서 이 저장소를 고르고 **Language/Runtime: Docker**, **Dockerfile path: `./Dockerfile`**로 설정합니다. 인스턴스를 계속 실행하는 요금제를 선택해야 정해진 점심시간에 자동 알림이 안정적으로 발송됩니다. HTTP Health Check Path는 `/actuator/health`로 설정할 수 있습니다.
 4. 웹 서비스 **Environment**에 아래 값을 입력합니다. Render Postgres의 내부 연결 정보에서 호스트·포트·데이터베이스명·사용자명·비밀번호를 복사합니다. `DATABASE_URL`은 `postgresql://...` 형식 대신 **JDBC** 형식으로 입력합니다.
@@ -161,7 +162,6 @@ Flyway는 시작 시 `V1__initial_schema.sql`을 적용하며 Hibernate는 스�
 ## 품질 및 알려진 범위
 
 `./gradlew test`에는 메뉴 중복, 재추첨, 참여자 메뉴 변경/취소, 잘못된 토큰, 마감 뒤 변경 금지 테스트가 포함됩니다. 원격 Supabase 계정이나 카카오톡 일반 단체방 메시지 API는 요구하지 않습니다. 참가자는 표시 이름을 직접 입력하며 계정 인증은 없습니다. 앱 인스턴스 재시작 뒤에도 방장 토큰은 OWNER_SECRET이 유지되는 동안 재생성할 수 있지만, 브라우저 데이터를 지우면 원래 만든 사람 확인 기능은 없습니다. 이 초기판은 방장 복구 UI, 속도 제한, 계정 로그인, 링크 만료를 제공하지 않으므로 신뢰하는 소규모 방에서 사용하세요.
-
 
 
 

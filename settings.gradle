@@ -1,0 +1,2 @@
+rootProject.name = 'jeommechurial-bot'
+include 'bot-core', 'bot-service', 'bot-persistence', 'bot-api', 'bot-app'

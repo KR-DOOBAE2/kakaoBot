@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#b2c7d9">
+  <title>점메추리알 · 카카오톡 대화 시연</title>
+  <link rel="stylesheet" href="/demo.css">
+</head>
+<body>
+  <main class="layout">
+    <section class="guide">
+      <a class="back" href="/">← 점메추리알 홈</a>
+      <div class="brand">🥚 점메추리알 <span>대화 시연</span></div>
+      <h1>단톡방에서는<br>이렇게 사용해요</h1>
+      <p>아래 화면에서 메뉴를 입력하고, 시계를 10시 45분으로 넘긴 뒤 룰렛을 눌러보세요.</p>
+      <div class="notice">시연용 가상 대화입니다. 실제 카카오톡 메시지가 전송되거나 저장되지는 않아요.</div>
+      <div class="steps"><span>① 메뉴 익명 입력</span><span>② 10:45 결과 공개</span><span>③ #룰렛돌리기</span></div>
+    </section>
+    <section class="phone" aria-label="카카오톡 단체방 시연">
+      <div class="phone-top"><span>9:41</span><span>●●● ▰</span></div>
+      <header class="chat-head"><button id="backBtn" aria-label="처음부터">〈</button><div><strong>우리 팀 점심방</strong><small>참여자 5명 · 시연용</small></div><button id="resetBtn" title="시연 다시 시작">↻</button></header>
+      <div class="chat-tools"><span id="clockLabel">오전 10:30 · 메뉴 모집 중</span><button id="advanceBtn">10:45로 이동 →</button></div>
+      <div id="messages" class="messages" role="log" aria-live="polite"></div>
+      <div class="composer"><button id="plusBtn" title="메뉴 예시">＋</button><input id="chatInput" maxlength="80" placeholder="먹고 싶은 메뉴를 입력하세요" aria-label="메뉴 또는 명령어"><button id="sendBtn">전송</button></div>
+      <div class="quick-actions"><button data-menu="김치찌개">김치찌개</button><button data-menu="돈까스">돈까스</button><button data-menu="초밥">초밥</button><button id="spinQuick">#룰렛돌리기</button></div>
+    </section>
+  </main>
+  <script src="/demo.js"></script>
+</body>
+</html>

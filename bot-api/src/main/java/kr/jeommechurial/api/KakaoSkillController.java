@@ -26,7 +26,7 @@ import java.util.regex.Pattern;
 @RestController
 @RequestMapping("/kakao")
 public class KakaoSkillController {
-    private static final Pattern COMMAND = Pattern.compile("^/?(방 만들기|방만들기|메뉴|취소|목록|추첨|재추첨|결과|마감|회사설정|오늘점심|점심추천|투표|좋아요|싫어요|알림켜기|알림끄기|도움말)(?:\\s+(.*))?$", Pattern.DOTALL);
+    private static final Pattern COMMAND = Pattern.compile("^/?(#룰렛돌리기|방 만들기|방만들기|메뉴|취소|목록|추첨|재추첨|결과|마감|회사설정|오늘점심|점심추천|투표|좋아요|싫어요|알림켜기|알림끄기|도움말)(?:\\s+(.*))?$", Pattern.DOTALL);
     private final LunchService service;
     private final OfficeLunchService officeService;
     private final String skillSecret;
@@ -94,15 +94,23 @@ public class KakaoSkillController {
             String title = args.isBlank() ? "오늘 점심 메뉴 모집" : args.substring(0, Math.min(args.length(), 80));
             CreatedRound round = service.create(title, "점메추리알 챗봇");
             String joinUrl = publicBaseUrl.isBlank() ? "" : "\n참여 웹 링크: " + publicBaseUrl + "/r/" + round.id() + "?token=" + round.joinToken();
-            return "🥚 점심방을 만들었어요!\n방 ID: " + round.id() + "\n참여 토큰: " + round.joinToken() + "\n방장 토큰: " + round.ownerToken() + joinUrl
-                    + "\n\n참여 명령: 메뉴 " + round.id() + " " + round.joinToken() + " 이름 메뉴이름";
+            return "🥚 익명 점심방을 만들었어요!\n메뉴는 오전 10시 44분까지 받고, 10시 45분에 룰렛 결과를 공개해요.\n방 ID: " + round.id() + "\n참여 토큰: " + round.joinToken() + "\n방장 토큰: " + round.ownerToken() + joinUrl
+                    + "\n\n참여 명령: 메뉴 " + round.id() + " " + round.joinToken() + " 메뉴이름";
         }
         if (command.equals("메뉴")) {
-            String[] p = args.split("\\s+", 4);
-            if (p.length < 4) return "사용법: 메뉴 방ID 참여토큰 이름 메뉴이름\n예: 메뉴 ... ... 민지 김치찌개";
+            String[] p = args.split("\\s+", 3);
+            if (p.length < 3) return "사용법: 메뉴 방ID 참여토큰 메뉴이름\n예: 메뉴 ... ... 김치찌개";
             UUID id = UUID.fromString(p[0]);
-            RoundView view = service.register(id, p[1], participantId(userKey), p[2], p[3]);
-            return "🍽️ 메뉴를 등록했어요!\n현재 후보 " + view.candidates().size() + "개: " + String.join(", ", view.candidates());
+            RoundView view = service.register(id, p[1], participantId(userKey), null, p[2]);
+            return "🍽️ 익명으로 메뉴를 등록했어요!\n현재 후보 " + view.candidates().size() + "개: " + String.join(", ", view.candidates());
+        }
+        if (command.equals("#룰렛돌리기")) {
+            String[] p = args.split("\\s+");
+            if (p.length < 2) return "사용법: #룰렛돌리기 방ID 참여토큰\n또는 참여 링크에서 #룰렛돌리기 버튼을 눌러주세요.";
+            RoundView view = service.get(UUID.fromString(p[0]), p[1]);
+            if (view.winner() == null) return view.status().name().equals("CLOSED") ? "오늘은 등록된 메뉴가 없어 룰렛을 돌리지 못했어요." : "🥚 두구두구… 룰렛 결과는 오전 10시 45분에 공개돼요!";
+            String link = publicBaseUrl.isBlank() ? "" : "\n룰렛 애니메이션: " + publicBaseUrl + "/r/" + view.id() + "?token=" + p[1];
+            return "🎲 #룰렛돌리기 결과는… " + view.winner() + "! 🎉" + link;
         }
         if (command.equals("취소")) {
             String[] p = args.split("\\s+");
@@ -115,7 +123,7 @@ public class KakaoSkillController {
             if (p.length < 2) return "사용법: " + command + " 방ID 참여토큰";
             RoundView view = service.get(UUID.fromString(p[0]), p[1]);
             if (command.equals("결과")) return view.winner() == null ? "아직 추첨 결과가 없어요." : "🎉 오늘의 메뉴는 " + view.winner() + " 입니다!";
-            String list = view.entries().isEmpty() ? "아직 등록된 메뉴가 없어요." : view.entries().stream().map(e -> e.participantName() + " · " + e.menu()).reduce((a, b) -> a + "\n" + b).orElse("");
+            String list = view.entries().isEmpty() ? "아직 등록된 메뉴가 없어요." : view.entries().stream().map(e -> "🥚 익명 · " + e.menu()).reduce((a, b) -> a + "\n" + b).orElse("");
             return "🥚 " + view.title() + "\n" + list + "\n\n후보: " + (view.candidates().isEmpty() ? "없음" : String.join(", ", view.candidates()));
         }
         if (command.equals("추첨") || command.equals("재추첨") || command.equals("마감")) {
@@ -137,7 +145,7 @@ public class KakaoSkillController {
     }
     private static void requireUser(String userKey) { if (userKey == null || userKey.isBlank()) throw new IllegalArgumentException("카카오 사용자 정보를 확인할 수 없어요."); }
     private static boolean constantTimeEquals(String expected, String actual) { return actual != null && MessageDigest.isEqual(expected.getBytes(StandardCharsets.UTF_8), actual.getBytes(StandardCharsets.UTF_8)); }
-    private static String help() { return "🥚 점메추리알 명령어\n회사설정 시작시간 종료시간 회사주소\n예: 회사설정 12:00 13:00 서울 강남구 테헤란로 123\n오늘점심\n투표 후보번호\n좋아요 / 싫어요\n알림켜기 / 알림끄기\n방 만들기 [모집이름]\n메뉴 방ID 참여토큰 이름 메뉴이름\n목록 방ID 참여토큰\n취소 방ID 참여토큰\n추첨 방ID 방장토큰\n재추첨 방ID 방장토큰\n결과 방ID 참여토큰\n마감 방ID 방장토큰"; }
+    private static String help() { return "🥚 점메추리알 명령어\n회사설정 시작시간 종료시간 회사주소\n오늘점심 / 투표 후보번호 / 좋아요 / 싫어요\n방 만들기 [모집이름]\n메뉴 방ID 참여토큰 메뉴이름 (익명)\n목록 방ID 참여토큰\n취소 방ID 참여토큰\n#룰렛돌리기 방ID 참여토큰\n메뉴 모집은 오전 10시 44분까지, 결과는 10시 45분 공개"; }
 }
 
 

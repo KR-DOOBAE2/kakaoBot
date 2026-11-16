@@ -16,6 +16,7 @@ public class RoundEntity {
     @Version long version;
     @Column(name="created_at",nullable=false) Instant createdAt;
     @Column(name="updated_at",nullable=false) Instant updatedAt;
+    @Column(name="draw_at") Instant drawAt;
     @PrePersist void insert(){id=id==null?UUID.randomUUID():id;createdAt=updatedAt=Instant.now();status=status==null?"OPEN":status;}
     @PreUpdate void update(){updatedAt=Instant.now();}
 }

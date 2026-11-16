@@ -39,7 +39,9 @@ public class RoundRestaurantService {
         List<PlaceCandidate> places = restaurants.discover(search.nearbyRestaurants(
                 location.latitude(), location.longitude(), 1000));
         if (places.isEmpty()) throw new IllegalStateException("회사 주변 1km에서 식당을 찾지 못했어요. 주소를 확인해주세요.");
-        List<Restaurant> ranked = places.stream().map(p -> new Restaurant(
+        List<PlaceCandidate> matching = places.stream()
+                .filter(p -> matches(round.winner(), p.name(), p.category())).toList();
+        List<Restaurant> ranked = (matching.isEmpty() ? places : matching).stream().map(p -> new Restaurant(
                 p.placeId(), p.name(), p.address(), p.category(), p.placeUrl(), p.distanceMeters(),
                 p.newlyDiscovered(), (int) round.entries().stream().map(MenuEntry::menu)
                         .filter(menu -> matches(menu, p.name(), p.category())).count(), p.score()))
@@ -49,7 +51,7 @@ public class RoundRestaurantService {
                         .thenComparing(Comparator.comparingInt(Restaurant::ratingScore).reversed())
                         .thenComparing(Restaurant::name))
                 .limit(5).toList();
-        return new Recommendation(round.winner(), ranked.get(0), ranked);
+        return new Recommendation(round.winner(), !matching.isEmpty(), ranked.get(0), ranked);
     }
 
     static boolean matches(String menu, String name, String category) {
@@ -76,6 +78,6 @@ public class RoundRestaurantService {
 
     public record Restaurant(String placeId, String name, String address, String category, String placeUrl,
                              int distanceMeters, boolean recentlyFound, int menuMentions, int ratingScore) {}
-    public record Recommendation(String winningMenu, Restaurant topPick, List<Restaurant> restaurants) {}
+    public record Recommendation(String winningMenu, boolean menuMatched, Restaurant topPick, List<Restaurant> restaurants) {}
 }
 

@@ -44,7 +44,9 @@ async function loadRestaurants() {
   $('#restaurantRetry').classList.add('hidden');
   try {
     const result = await api(`/api/rounds/${roundId}/restaurants?token=${encodeURIComponent(joinToken)}`);
-    $('#restaurantStatus').textContent = `🥚 ${result.winningMenu} · 추천 식당 ${result.restaurants.length}곳`;
+    $('#restaurantStatus').textContent = result.menuMatched
+      ? `🥚 ${result.winningMenu} 메뉴와 관련된 식당 ${result.restaurants.length}곳`
+      : `🥚 ${result.winningMenu} 메뉴와 맞는 식당을 찾지 못해 주변 식당 ${result.restaurants.length}곳을 보여드려요.`;
     $('#restaurantList').innerHTML = result.restaurants.map((p, i) => {
       const safeUrl = /^https:\/\//i.test(p.placeUrl || '') ? escapeHtml(p.placeUrl) : '';
       return `<div class="restaurant"><div class="restaurant-rank">${i === 0 ? '👑' : i + 1}</div><div class="restaurant-main"><strong>${escapeHtml(p.name)}</strong>${p.recentlyFound ? '<span class="recent">최근 발견</span>' : ''}<p>${escapeHtml(p.address || '주소 정보 없음')}</p><small>${p.distanceMeters}m · 메뉴 언급 ${p.menuMentions}회 · 평가 ${p.ratingScore > 0 ? '+' : ''}${p.ratingScore}</small>${safeUrl ? `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer">지도에서 보기 ↗</a>` : ''}</div></div>`;

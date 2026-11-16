@@ -44,7 +44,8 @@ class RoundRestaurantServiceTest {
         var result = service.recommend(created.id(), created.joinToken());
         assertEquals("new-far", result.topPick().placeId());
         assertEquals(2, result.topPick().menuMentions());
-        assertEquals(List.of("new-far", "new-near", "old"), result.restaurants().stream().map(RoundRestaurantService.Restaurant::placeId).toList());
+        assertTrue(result.menuMatched());
+        assertEquals(List.of("new-far", "old"), result.restaurants().stream().map(RoundRestaurantService.Restaurant::placeId).toList());
         assertSame(result, service.recommend(created.id(), created.joinToken()));
     }
 

@@ -113,31 +113,34 @@ Render 무료 웹 서비스는 유휴 시 중지될 수 있고 무료 PostgreSQL
 카카오 챗봇 스킬에 회사 단위 점심 추천 흐름을 추가했습니다. 현재 하나의 배포 인스턴스는 하나의 회사 주소와 점심시간을 공유합니다. 회사 주소를 처음 등록한 실제 채널 사용자가 설정 관리자이므로, `회사설정`은 Skill 테스트 가짜 사용자 대신 배포된 채널 대화에서 처음 실행하세요.
 
 - 첫 설정: `회사설정 12:00 13:00 서울 강남구 테헤란로 123` (점심 시작 12:00, 종료 13:00; 처음 설정한 사용자가 회사 설정 관리자가 됩니다)
-- 회사 주소를 Kakao Local API로 좌표 변환 후, 반경 1km 음식점 검색
+- 회사 주소를 OpenStreetMap Nominatim으로 좌표 변환하고, Overpass에서 반경 1km 음식점 검색 (기본 설정)
 - 매일 처음 조회할 때 5개 후보를 저장하고 투표 생성
-- `오늘점심`은 점심 시작 전 후보와 투표수를 표시하고, 시작 시각 이후에는 최근 발견된 식당을 우선한 뒤 투표수로 추천
+- `오늘점심`은 점심 시작 전 후보와 투표수를 표시하고, 시작 시각 이후에는 최근 발견 → 투표수 → 거리 → 평가 순으로 식당을 선정
 - 점심 시작 시각에 투표가 마감됩니다. `투표 2`로 1인 1표(다시 입력하면 표 변경), 점심 종료 시각 이후 `좋아요`/`싫어요`로 추천 식당을 평가합니다.
-- 최근 7일 안에 시스템이 처음 발견한 식당을 최우선 추천하고, 같은 신규성 구간 안에서는 투표 수·평가·거리를 반영
+- 최근 7일 안에 시스템이 처음 발견한 식당을 최우선 추천하고, 같은 신규성 구간 안에서는 투표 수·거리·평가를 반영
 - `알림켜기`를 한 사용자는 점심시간에 Kakao Event API로 결과 알림을 받을 수 있고, `알림끄기`로 해제
 
-실제 신규 개업일 데이터는 Kakao Local 장소 검색 응답에 포함되지 않아, “신규”는 이 서비스가 최근 7일 안에 처음 발견한 식당을 뜻합니다. 좋아요 평가는 투표 동률 추천 우선순위에 반영합니다. 회사 주소/점심시간 설정 시 그날 후보를 검색합니다.
+“최근 발견”은 실제 개업일이 아니라 이 서비스가 최근 7일 안에 처음 발견했다는 뜻입니다. 좋아요·싫어요 평가는 신규 여부·투표수·거리 동률일 때 반영됩니다. 회사 주소/점심시간 설정 시 그날 후보를 검색합니다. 장소 데이터는 © OpenStreetMap contributors이며, 지도 링크에서 상세 위치를 확인할 수 있습니다. 공개 OSM 서비스에는 사용량 제한과 가용성 제약이 있어 소규모 테스트에 적합합니다.
 
 ### Kakao 설정
 
-Kakao Developers에서 Local API용 REST API 키를 발급해 `KAKAO_REST_API_KEY`에 넣어야 실제 주소/음식점을 검색합니다. [카카오 장소 검색 API](https://developers.kakao.com/docs/ko/local/dev-guide)는 `Authorization: KakaoAK` REST 키로 음식점 카테고리(FD6)를 검색합니다.
+기본 장소 제공자는 OpenStreetMap이며 별도 키가 필요 없습니다. 회사 주소 조회는 [Nominatim 사용 정책](https://operations.osmfoundation.org/policies/nominatim/)의 초당 1회 제한·캐시·출처 표시를 준수합니다. 음식점 후보는 공개 Overpass API에서 가져옵니다. 국내 식당 데이터가 누락될 수 있고, 공개 API 장애 시 새 후보를 검색하지 못할 수 있습니다.
+
+카카오맵 유료 사용을 별도로 설정한 경우에만 `PLACE_PROVIDER=kakao`와 `KAKAO_REST_API_KEY`를 함께 설정합니다. 카카오맵은 개발자 계정의 첫 활성화 앱에만 무료 쿼터가 제공됩니다. [카카오맵 정책](https://developers.kakao.com/docs/ko/kakaomap/common)을 확인하세요.
 
 점심시간 자동 푸시는 별도 선택 기능입니다. `KAKAO_BOT_ID`와 관리자센터 이벤트 이름(`KAKAO_LUNCH_EVENT_NAME`, 기본값 `lunch_recommendation`)을 설정하고, 챗봇 관리자센터의 이벤트 블록에서 같은 이름을 등록해야 합니다. 메시지 템플릿에서 `{{#current.event.data.restaurantName}}`, `address`, `distance`, `placeUrl` 값을 표시하도록 구성하세요. 사용자는 `알림켜기`로 등록해야 하며 채널 친구여야 받을 수 있습니다. 카카오 Event API는 비즈 인증 채널과 비즈 앱 연결 등 별도 선행 조건이 있습니다. [Event API 설정·발송 조건](https://kakaobusiness.gitbook.io/main/tool/chatbot/main_notions/event-api).
 ## 환경 변수
 
-`.env.example`은 예시 파일이며 PowerShell이 자동으로 읽지 않습니다. 실행할 PowerShell 창에서 카카오 키를 설정하려면 아래처럼 입력하세요. 카카오 푸시까지 사용할 때는 `KAKAO_BOT_ID`도 설정해야 합니다.
+`.env.example`은 예시 파일이며 PowerShell이 자동으로 읽지 않습니다. OpenStreetMap 검색에는 키가 필요하지 않습니다. 카카오맵을 유료로 활성화한 경우에만 실행할 PowerShell 창에서 아래처럼 입력하세요. 카카오 푸시까지 사용할 때는 `KAKAO_BOT_ID`도 설정해야 합니다.
 
 ```powershell
+$env:PLACE_PROVIDER="kakao"
 $env:KAKAO_REST_API_KEY="카카오 디벨로퍼스 REST API 키"
 $env:KAKAO_BOT_ID="챗봇 관리자센터 Bot ID"
 $env:KAKAO_LUNCH_EVENT_NAME="lunch_recommendation"
 ```
 
-`DATABASE_URL`, `DATABASE_USERNAME`, `DATABASE_PASSWORD`, `OWNER_SECRET`, `KAKAO_SKILL_SECRET`, `PUBLIC_BASE_URL`, `KAKAO_REST_API_KEY`, `KAKAO_BOT_ID`, `KAKAO_LUNCH_EVENT_NAME`, `PORT` (기본 8080). 예제는 [.env.example](.env.example)에 있습니다.
+`DATABASE_URL`, `DATABASE_USERNAME`, `DATABASE_PASSWORD`, `OWNER_SECRET`, `KAKAO_SKILL_SECRET`, `PUBLIC_BASE_URL`, `PLACE_PROVIDER` (기본 `osm`), `OSM_GEOCODER_URL`, `OSM_OVERPASS_URL`, 선택적 `KAKAO_REST_API_KEY`, `KAKAO_BOT_ID`, `KAKAO_LUNCH_EVENT_NAME`, `PORT` (기본 8080). 예제는 [.env.example](.env.example)에 있습니다.
 
 ## API 요약
 
@@ -164,7 +167,6 @@ Flyway는 시작 시 `V1__initial_schema.sql`을 적용하며 Hibernate는 스�
 ## 품질 및 알려진 범위
 
 `./gradlew test`에는 메뉴 중복, 재추첨, 참여자 메뉴 변경/취소, 잘못된 토큰, 마감 뒤 변경 금지 테스트가 포함됩니다. 원격 Supabase 계정이나 카카오톡 일반 단체방 메시지 API는 요구하지 않습니다. 참가자는 표시 이름을 직접 입력하며 계정 인증은 없습니다. 앱 인스턴스 재시작 뒤에도 방장 토큰은 OWNER_SECRET이 유지되는 동안 재생성할 수 있지만, 브라우저 데이터를 지우면 원래 만든 사람 확인 기능은 없습니다. 이 초기판은 방장 복구 UI, 속도 제한, 계정 로그인, 링크 만료를 제공하지 않으므로 신뢰하는 소규모 방에서 사용하세요.
-
 
 
 

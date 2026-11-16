@@ -79,7 +79,7 @@ public class KakaoSkillController {
             var status=officeService.today();
             if(status.pollOpen())return "🗳️ 점심 투표를 진행 중이에요!\n"+pollText(status)+"\n투표하려면 투표 후보번호를 보내주세요.";
             var result=officeService.recommend();var winner=result.winner().orElseThrow();
-            return "🎉 오늘의 식당 추천: "+winner.name()+"\n"+winner.address()+" ("+winner.distanceMeters()+"m)\n"+winner.placeUrl()+"\n새로 발견한 식당 우선 · 투표 "+result.votes().getOrDefault(winner.placeId(),0L)+"표\n"+result.profile().lunchEndTime()+" 이후 좋아요 또는 싫어요로 평가해주세요.";
+            return "🎉 오늘의 식당 추천: "+winner.name()+"\n"+winner.address()+" ("+winner.distanceMeters()+"m)\n"+winner.placeUrl()+"\n최근 발견 → 투표수 → 거리 → 평가 순으로 선정 · 투표 "+result.votes().getOrDefault(winner.placeId(),0L)+"표\n"+result.profile().lunchEndTime()+" 이후 좋아요 또는 싫어요로 평가해주세요.\n"+sourceLabel(winner.placeId());
         }
         if (command.equals("투표")) {
             if(!args.matches("\\d+"))return "투표할 후보 번호를 입력해주세요. 예: 투표 2";
@@ -129,7 +129,8 @@ public class KakaoSkillController {
         return help();
     }
 
-    private static String pollText(OfficeLunchService.PollStatus s){StringBuilder out=new StringBuilder("회사 주변 식당 후보\n");for(int i=0;i<s.candidates().size();i++){var p=s.candidates().get(i);out.append(i+1).append(". ").append(p.name());if(p.newlyDiscovered())out.append(" 🆕");out.append(" · ").append(p.distanceMeters()).append("m · ").append(s.votes().getOrDefault(p.placeId(),0L)).append("표\n");}return out.toString().strip();}
+    private static String pollText(OfficeLunchService.PollStatus s){StringBuilder out=new StringBuilder("회사 주변 식당 후보 (최근 발견 → 거리 → 평가)\n");for(int i=0;i<s.candidates().size();i++){var p=s.candidates().get(i);out.append(i+1).append(". ").append(p.name());if(p.newlyDiscovered())out.append(" 🆕 최근 발견");out.append(" · ").append(p.distanceMeters()).append("m · 평가 ").append(p.score()>=0?"+":"").append(p.score()).append(" · ").append(s.votes().getOrDefault(p.placeId(),0L)).append("표\n");}if(!s.candidates().isEmpty())out.append(sourceLabel(s.candidates().get(0).placeId()));return out.toString().strip();}
+    private static String sourceLabel(String placeId){return placeId.startsWith("osm-")?"장소 정보: © OpenStreetMap contributors":"장소 정보: Kakao Map";}
     private static UUID participantId(String userKey) {
         requireUser(userKey);
         return UUID.nameUUIDFromBytes(("kakao-bot-user:" + userKey).getBytes(StandardCharsets.UTF_8));

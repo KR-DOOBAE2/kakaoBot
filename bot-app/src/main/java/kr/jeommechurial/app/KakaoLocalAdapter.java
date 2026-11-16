@@ -5,11 +5,13 @@ import kr.jeommechurial.core.PlaceSearchResult;
 import kr.jeommechurial.service.RestaurantSearch;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriBuilder;
 import java.util.*;
 
 @Component
+@ConditionalOnProperty(name="app.place-provider",havingValue="kakao")
 public class KakaoLocalAdapter implements RestaurantSearch {
     private final RestClient client;
     private final String restKey;

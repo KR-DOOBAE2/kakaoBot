@@ -7,6 +7,18 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class OfficeLunchServiceTest {
+    @Test void ranksRecentlyDiscoveredThenVotesThenDistanceThenRating(){
+        Instant now=Instant.now();
+        PlaceCandidate recentFar=new PlaceCandidate("new-far","신규 원거리","", "", "", "",37.5,127,800,now,0,0);
+        PlaceCandidate recentNear=new PlaceCandidate("new-near","신규 근거리","", "", "", "",37.5,127,100,now,0,0);
+        PlaceCandidate oldPopular=new PlaceCandidate("old","기존 인기","", "", "", "",37.5,127,50,now.minus(Duration.ofDays(8)),10,0);
+        List<PlaceCandidate> sorted=List.of(oldPopular,recentFar,recentNear).stream()
+                .sorted(OfficeLunchService.ranking(Map.of("new-far",2L,"new-near",1L,"old",20L))).toList();
+        assertEquals(List.of("new-far","new-near","old"),sorted.stream().map(PlaceCandidate::placeId).toList());
+        List<PlaceCandidate> tiedVotes=List.of(recentFar,recentNear).stream()
+                .sorted(OfficeLunchService.ranking(Map.of())).toList();
+        assertEquals("new-near",tiedVotes.get(0).placeId());
+    }
     @Test void savesOfficeAndBuildsRestaurantVoteForToday(){
         FakeOfficeRepository repository=new FakeOfficeRepository();FakePlaceSearch search=new FakePlaceSearch();OfficeLunchService service=new OfficeLunchService(repository,search);
         OfficeProfile office=service.configure("서울 강남구 테헤란로 1",LocalTime.of(23,59),LocalTime.MAX,1000,"admin-key");

@@ -10,9 +10,10 @@ async function api(path, options = {}) {
   if (!response.ok) throw Error(data.error || '요청을 처리하지 못했어요.');
   return data;
 }
-function drawTime(data) { return new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'long', day: 'numeric', weekday: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(data.drawAt)); }
+function drawTime(data) { return data.drawAt ? new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'long', day: 'numeric', weekday: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(data.drawAt)) : null; }
 function updateCountdown() {
   if (!roundData) return;
+  if (!roundData.drawAt) { $('#countdown').textContent = '이전 방식의 방이에요. 홈에서 새 방을 만들어주세요.'; $('#spinBtn').disabled = true; return; }
   const ms = new Date(roundData.drawAt).getTime() - Date.now();
   if (roundData.status === 'CLOSED') $('#countdown').textContent = '등록된 메뉴가 없어 룰렛이 마감됐어요.';
   else if (ms > 0) { const seconds = Math.ceil(ms / 1000), hours = Math.floor(seconds / 3600), minutes = Math.floor(seconds % 3600 / 60); $('#countdown').textContent = `결과 공개까지 ${hours ? `${hours}시간 ` : ''}${minutes}분 ${seconds % 60}초 남았어요 🐣`; }
@@ -24,10 +25,10 @@ function showRound(data) {
   $('#create').classList.add('hidden'); $('#roomView').classList.remove('hidden');
   $('#roundTitle').textContent = data.title; $('#roomName').textContent = `💬 ${data.roomName}`;
   $('#status').textContent = { OPEN: '모집 중', DRAWN: '추첨 완료', CLOSED: '모집 마감' }[data.status];
-  $('#schedule').textContent = `${drawTime(data)} 공개 · 공개 직전까지 익명 메뉴 입력`;
+  $('#schedule').textContent = data.drawAt ? `${drawTime(data)} 공개 · 공개 직전까지 익명 메뉴 입력` : '이전 방식의 방 · 새 점심방을 만들어주세요';
   $('#count').textContent = `${data.candidates.length}개 메뉴 후보`;
   $('#entries').innerHTML = data.entries.length ? data.entries.map((entry, i) => `<div class="entry"><div class="entry-icon">${emojis[i % emojis.length]}</div><div class="entry-info"><div class="entry-name">익명</div><div class="entry-menu">${escapeHtml(entry.menu)}</div></div></div>`).join('') : '<div class="empty">아직 메뉴가 없어요.<br>첫 메뉴를 등록해볼까요? 🐣</div>';
-  const accepting = data.status === 'OPEN' && Date.now() < new Date(data.drawAt).getTime();
+  const accepting = data.status === 'OPEN' && data.drawAt && Date.now() < new Date(data.drawAt).getTime();
   $('#menuForm').classList.toggle('hidden', !accepting); $('#cancelBtn').classList.toggle('hidden', !accepting);
   updateCountdown();
   if (data.winner && !revealed && !spinning) animate(data);
@@ -46,6 +47,7 @@ $('#createBtn').onclick = async () => {
   try {
     const data = await api('/api/rounds', { method: 'POST', body: JSON.stringify({ roomName: $('#room').value || '우리 점심팟', title: $('#title').value || '오늘 점심 메뉴 모집' }) });
     roundId = data.id; joinToken = data.joinToken; shareUrl = data.joinUrl;
+    sessionStorage.setItem(`jm-join-${roundId}`, joinToken);
     history.replaceState({}, '', `/r/${roundId}`); await refresh();
     toast('방이 만들어졌어요! 링크를 단톡방에 공유해보세요 🥚');
   } catch (error) { toast(error.message); }
@@ -64,8 +66,11 @@ setInterval(updateCountdown, 1000);
 setInterval(() => { if (roundId && joinToken) refresh().catch(() => {}); }, 15000);
 (async () => {
   const match = location.pathname.match(/^\/r\/([0-9a-f-]{36})$/i); if (!match) return;
-  roundId = match[1]; const params = new URLSearchParams(location.search); joinToken = params.get('token');
+  roundId = match[1]; const params = new URLSearchParams(location.search); joinToken = params.get('token') || sessionStorage.getItem(`jm-join-${roundId}`);
   if (!joinToken) { toast('초대 링크의 token 값이 없어요. 초대 링크를 다시 열어주세요.'); return; }
-  shareUrl = location.href; history.replaceState({}, '', location.pathname);
+  sessionStorage.setItem(`jm-join-${roundId}`, joinToken);
+  shareUrl = `${location.origin}/r/${roundId}?token=${encodeURIComponent(joinToken)}`;
+  history.replaceState({}, '', location.pathname);
   try { await refresh(); } catch (error) { toast(error.message); }
 })();
+

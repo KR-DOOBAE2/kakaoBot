@@ -1,7 +1,31 @@
 const $ = selector => document.querySelector(selector);
 let roundId, joinToken, shareUrl, roundData, ownerToken, diningMode = '매장', spinning = false, revealed = false, lastDrawAt;
 let restaurantLoading = false, restaurantLoaded = false;
+let weatherLoading = false, weatherAddress = null, weatherCheckedAt = 0;
 const emojis = ['🍜', '🍚', '🥟', '🍛', '🍣', '🍲', '🥗', '🍔'];
+const characters = [
+  { id: 'chiikawa', name: '치이카와' }, { id: 'usagi', name: '우사기' },
+  { id: 'hachiware', name: '하치와레' }, { id: 'momonga', name: '모몽가' },
+  { id: 'rakko', name: '랏코' }, { id: 'kurimanju', name: '쿠리만쥬' }
+];
+function characterFor(menu, drawAt) {
+  let hash = 2166136261;
+  for (const c of `${drawAt}|${menu}`) hash = Math.imul(hash ^ c.charCodeAt(0), 16777619);
+  return characters[(hash >>> 0) % characters.length];
+}
+function foodFor(menu) {
+  const name = menu.replace(/^(매장|배달)\s*·\s*/, '');
+  if (/초밥|스시|일식/.test(name)) return '🍣';
+  if (/라멘|우동|국수|면/.test(name)) return '🍜';
+  if (/치킨|닭/.test(name)) return '🍗';
+  if (/햄버거|버거|패스트/.test(name)) return '🍔';
+  if (/피자|양식/.test(name)) return '🍕';
+  if (/중식|짜장|짬뽕|마라/.test(name)) return '🥟';
+  if (/김치|찌개|국밥|탕|국물/.test(name)) return '🍲';
+  if (/샐러드|채식/.test(name)) return '🥗';
+  if (/한식|밥|비빔/.test(name)) return '🍚';
+  return '🍽️';
+}
 function toast(message) { const el = $('#toast'); el.textContent = message; el.classList.add('on'); setTimeout(() => el.classList.remove('on'), 2600); }
 function participantId() { const key = `jm-p-${roundId}`; let id = localStorage.getItem(key); if (!id) { id = crypto.randomUUID(); localStorage.setItem(key, id); } return id; }
 function escapeHtml(value) { return String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
@@ -40,9 +64,35 @@ function showRound(data) {
   const accepting = data.status === 'OPEN' && data.drawAt && Date.now() < new Date(data.drawAt).getTime();
   $('#menuForm').classList.toggle('hidden', !accepting); $('#cancelBtn').classList.toggle('hidden', !accepting);
   updateCountdown();
+  $('#illustratedMenus').classList.toggle('hidden', data.candidates.length === 0);
+  if (data.candidates.length) renderIllustrations(data);
   if (data.winner && !revealed && !spinning) animate(data);
   $('#restaurantCard').classList.toggle('hidden', !data.winner);
   if (data.winner && !restaurantLoaded && !restaurantLoading) loadRestaurants();
+  if (data.officeAddress && !weatherLoading && (weatherAddress !== data.officeAddress || Date.now() - weatherCheckedAt > 30 * 60 * 1000)) loadWeather(data.officeAddress);
+}
+function renderIllustrations(data) {
+  const ordered = [...data.candidates].sort((a, b) => Number(b === data.winner && revealed) - Number(a === data.winner && revealed));
+  $('#menuIllustrations').innerHTML = ordered.map(menu => {
+    const c = characterFor(menu, data.drawAt), won = menu === data.winner && revealed;
+    return `<div class="menu-illustration ${won ? 'is-winner' : ''}"><div class="character-art"><img src="/characters/${c.id}${won ? '-happy' : ''}.png" alt="${c.name}가 ${escapeHtml(menu)} 음식을 들고 있어요" loading="lazy"><span class="plate-food" aria-hidden="true">${foodFor(menu)}</span></div><strong>${escapeHtml(menu)}</strong><small>${c.name}${won ? ' · 당첨! 🎉' : ''}</small></div>`;
+  }).join('');
+}
+async function loadWeather(address) {
+  weatherLoading = true;
+  $('#weatherStatus').textContent = '🌤️ 오늘 날씨를 확인 중이에요…';
+  try {
+    const result = await api(`/api/rounds/${roundId}/weather?token=${encodeURIComponent(joinToken)}`);
+    if (roundData.officeAddress !== address) return;
+    weatherAddress = address; weatherCheckedAt = Date.now();
+    const icon = { sunny: '☀️', cloudy: '☁️', rain: '🌧️', snow: '❄️' }[result.theme] || '🌤️';
+    $('#weatherStatus').textContent = `${icon} 오늘의 날씨 ${result.label} · ${Math.round(result.temperatureCelsius)}°C · 자료: ${result.source}`;
+    $('#weatherHero').classList.remove('weather-sunny', 'weather-cloudy', 'weather-rain', 'weather-snow');
+    $('#weatherHero').classList.add(`weather-${result.theme}`);
+  } catch (error) {
+    weatherAddress = address; weatherCheckedAt = Date.now();
+    $('#weatherStatus').textContent = '🌤️ 현재 날씨를 확인하지 못했어요.';
+  } finally { weatherLoading = false; }
 }
 async function loadRestaurants() {
   if (restaurantLoading || !roundId || !joinToken) return;
@@ -68,12 +118,12 @@ async function loadRestaurants() {
 $('#restaurantRetry').onclick = loadRestaurants;
 function animate(data) {
   if (spinning || !data.winner) return;
-  spinning = true; $('#winner').classList.remove('hidden'); $('#winner').classList.add('spinning');
+  spinning = true; revealed = false; renderIllustrations(data); $('#winner').classList.remove('hidden'); $('#winner').classList.add('spinning');
   const choices = data.candidates.length ? data.candidates : [data.winner];
   let step = 0;
   const timer = setInterval(() => { $('#winner').innerHTML = `<small>🥚 두구두구…</small>${escapeHtml(choices[step++ % choices.length])}`; }, 85);
   updateCountdown();
-  setTimeout(() => { clearInterval(timer); $('#winner').classList.remove('spinning'); $('#winner').innerHTML = `<small>오늘의 점메추리알 당첨!</small>🎉 ${escapeHtml(data.winner)}`; spinning = false; revealed = true; updateCountdown(); }, 2700);
+  setTimeout(() => { clearInterval(timer); $('#winner').classList.remove('spinning'); $('#winner').innerHTML = `<small>오늘의 점메추리알 당첨!</small>🎉 ${escapeHtml(data.winner)}`; spinning = false; revealed = true; renderIllustrations(data); updateCountdown(); }, 2700);
 }
 async function refresh() { showRound(await api(`/api/rounds/${roundId}?token=${encodeURIComponent(joinToken)}`, { headers: { 'X-Participant-Id': participantId() } })); }
 $('#createBtn').onclick = async () => {

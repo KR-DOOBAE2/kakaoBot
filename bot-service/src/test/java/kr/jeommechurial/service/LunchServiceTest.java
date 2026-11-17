@@ -74,6 +74,27 @@ class LunchServiceTest {
         assertEquals(LocalTime.of(13, 0), view.lunchEndTime());
         assertThrows(IllegalArgumentException.class, () -> service.create("점심", "우리방", "서울", LocalTime.of(13, 0), LocalTime.NOON));
     }
+    @Test void onlyCreatorCanChangePersistentTeamSettings() {
+        CreatedRound r = service.create("점심", "우리팀", "서울시청", LocalTime.NOON, LocalTime.of(13, 0));
+        assertThrows(SecurityException.class, () -> service.updateSettings(r.id(), "wrong", "부산시청", LocalTime.of(11, 0), LocalTime.NOON));
+        service.updateSettings(r.id(), r.ownerToken(), "부산시청", LocalTime.of(11, 0), LocalTime.NOON);
+        RoundView view = service.get(r.id(), r.joinToken());
+        assertEquals("부산시청", view.officeAddress());
+        assertEquals(LocalTime.of(11, 0), view.lunchStartTime());
+    }
+    @Test void sameTeamLinkStartsFreshBallotNextDayAndKeepsSettings() {
+        CreatedRound r = service.create("점심", "우리팀", "서울시청", LocalTime.NOON, LocalTime.of(13, 0));
+        service.register(r.id(), r.joinToken(), UUID.randomUUID(), null, "매장 · 한식");
+        service = new LunchService(repo, "test-secret", Clock.fixed(Instant.parse("2026-11-16T01:45:00Z"), ZoneOffset.UTC));
+        assertEquals("매장 · 한식", service.get(r.id(), r.joinToken()).winner());
+        service = new LunchService(repo, "test-secret", Clock.fixed(Instant.parse("2026-11-16T23:00:00Z"), ZoneOffset.UTC));
+        RoundView next = service.get(r.id(), r.joinToken());
+        assertEquals(RoundStatus.OPEN, next.status());
+        assertTrue(next.entries().isEmpty());
+        assertNull(next.winner());
+        assertEquals("서울시청", next.officeAddress());
+        assertEquals(Instant.parse("2026-11-17T01:45:00Z"), next.drawAt());
+    }
 
     static class FakeRepository implements RoundRepository {
         final Map<UUID, LunchRound> rounds = new HashMap<>();
@@ -107,5 +128,19 @@ class LunchServiceTest {
             rounds.put(id, new LunchRound(id, r.ownerId(), r.title(), r.roomName(), r.joinTokenHash(), RoundStatus.CLOSED, r.winner(), version + 1, r.createdAt(), Instant.now(), r.drawAt(), r.officeAddress(), r.lunchStartTime(), r.lunchEndTime()));
             return true;
         }
+        public boolean updateSettings(UUID id, String address, LocalTime start, LocalTime end, long version) {
+            LunchRound r = rounds.get(id);
+            if (r.version() != version) return false;
+            rounds.put(id, new LunchRound(id, r.ownerId(), r.title(), r.roomName(), r.joinTokenHash(), r.status(), r.winner(), version + 1, r.createdAt(), Instant.now(), r.drawAt(), address, start, end));
+            return true;
+        }
+        public boolean resetForNewDay(UUID id, Instant drawAt, long version) {
+            LunchRound r = rounds.get(id);
+            if (r.version() != version) return false;
+            rounds.put(id, new LunchRound(id, r.ownerId(), r.title(), r.roomName(), r.joinTokenHash(), RoundStatus.OPEN, null, version + 1, r.createdAt(), Instant.now(), drawAt, r.officeAddress(), r.lunchStartTime(), r.lunchEndTime()));
+            entries.get(id).clear();
+            return true;
+        }
     }
 }
+

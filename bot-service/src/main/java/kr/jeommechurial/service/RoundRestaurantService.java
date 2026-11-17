@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.time.Instant;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
@@ -18,7 +19,7 @@ public class RoundRestaurantService {
     private final LunchService rounds;
     private final RestaurantSearch search;
     private final OfficeRepository restaurants;
-    private final Map<UUID, Recommendation> cache = new ConcurrentHashMap<>();
+    private final Map<CacheKey, Recommendation> cache = new ConcurrentHashMap<>();
 
     public RoundRestaurantService(LunchService rounds, RestaurantSearch search, OfficeRepository restaurants) {
         this.rounds = rounds;
@@ -31,7 +32,7 @@ public class RoundRestaurantService {
         if (round.winner() == null) throw new IllegalStateException("룰렛 결과가 나온 뒤 식당을 추천할 수 있어요.");
         if (round.officeAddress() == null || round.officeAddress().isBlank())
             throw new IllegalStateException("이 방에는 회사 주소가 없어요. 주소를 입력한 새 점심방을 만들어주세요.");
-        return cache.computeIfAbsent(roundId, ignored -> find(round));
+        return cache.computeIfAbsent(new CacheKey(roundId, round.drawAt(), round.officeAddress(), round.winner()), ignored -> find(round));
     }
 
     private Recommendation find(RoundView round) {
@@ -79,5 +80,6 @@ public class RoundRestaurantService {
     public record Restaurant(String placeId, String name, String address, String category, String placeUrl,
                              int distanceMeters, boolean recentlyFound, int menuMentions, int ratingScore) {}
     public record Recommendation(String winningMenu, boolean menuMatched, Restaurant topPick, List<Restaurant> restaurants) {}
+    private record CacheKey(UUID roundId, Instant drawAt, String address, String winner) {}
 }
 

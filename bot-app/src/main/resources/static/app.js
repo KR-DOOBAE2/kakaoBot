@@ -1,5 +1,5 @@
 const $ = selector => document.querySelector(selector);
-let roundId, joinToken, shareUrl, roundData, spinning = false, revealed = false;
+let roundId, joinToken, shareUrl, roundData, ownerToken, diningMode = '매장', spinning = false, revealed = false, lastDrawAt;
 let restaurantLoading = false, restaurantLoaded = false;
 const emojis = ['🍜', '🍚', '🥟', '🍛', '🍣', '🍲', '🥗', '🍔'];
 function toast(message) { const el = $('#toast'); el.textContent = message; el.classList.add('on'); setTimeout(() => el.classList.remove('on'), 2600); }
@@ -22,14 +22,21 @@ function updateCountdown() {
   $('#spinBtn').disabled = roundData.status === 'CLOSED' || ms > 0 || spinning || roundData.candidates.length === 0;
 }
 function showRound(data) {
+  if (lastDrawAt && lastDrawAt !== data.drawAt) {
+    revealed = false; restaurantLoaded = false;
+    $('#winner').classList.add('hidden');
+    $('#restaurantList').replaceChildren();
+  }
+  lastDrawAt = data.drawAt;
   roundData = data;
   $('#create').classList.add('hidden'); $('#roomView').classList.remove('hidden');
   $('#roundTitle').textContent = data.title; $('#roomName').textContent = `💬 ${data.roomName}`;
   $('#officeDetails').textContent = data.officeAddress ? `📍 ${data.officeAddress} · 🍽️ 점심 ${String(data.lunchStartTime).slice(0,5)}~${String(data.lunchEndTime).slice(0,5)}` : '회사 주소와 식사 시간이 설정되지 않은 이전 방이에요.';
+  $('#settingsForm').classList.toggle('hidden', !ownerToken);
+  $('#settingsReadOnly').classList.toggle('hidden', !!ownerToken);
   $('#status').textContent = { OPEN: '모집 중', DRAWN: '추첨 완료', CLOSED: '모집 마감' }[data.status];
   $('#schedule').textContent = data.drawAt ? `${drawTime(data)} 공개 · 공개 직전까지 익명 메뉴 입력` : '이전 방식의 방 · 새 점심방을 만들어주세요';
   $('#count').textContent = `${data.candidates.length}개 메뉴 후보`;
-  $('#entries').innerHTML = data.entries.length ? data.entries.map((entry, i) => `<div class="entry"><div class="entry-icon">${emojis[i % emojis.length]}</div><div class="entry-info"><div class="entry-name">익명</div><div class="entry-menu">${escapeHtml(entry.menu)}</div></div></div>`).join('') : '<div class="empty">아직 메뉴가 없어요.<br>첫 메뉴를 등록해볼까요? 🐣</div>';
   const accepting = data.status === 'OPEN' && data.drawAt && Date.now() < new Date(data.drawAt).getTime();
   $('#menuForm').classList.toggle('hidden', !accepting); $('#cancelBtn').classList.toggle('hidden', !accepting);
   updateCountdown();
@@ -44,9 +51,10 @@ async function loadRestaurants() {
   $('#restaurantRetry').classList.add('hidden');
   try {
     const result = await api(`/api/rounds/${roundId}/restaurants?token=${encodeURIComponent(joinToken)}`);
-    $('#restaurantStatus').textContent = result.menuMatched
+    $('#restaurantStatus').textContent = (result.menuMatched
       ? `🥚 ${result.winningMenu} 메뉴와 관련된 식당 ${result.restaurants.length}곳`
-      : `🥚 ${result.winningMenu} 메뉴와 맞는 식당을 찾지 못해 주변 식당 ${result.restaurants.length}곳을 보여드려요.`;
+      : `🥚 ${result.winningMenu} 메뉴와 맞는 식당을 찾지 못해 주변 식당 ${result.restaurants.length}곳을 보여드려요.`)
+      + (result.winningMenu.startsWith('배달 ·') ? ' 배달 가능 여부는 매장에 확인해주세요.' : '');
     $('#restaurantList').innerHTML = result.restaurants.map((p, i) => {
       const safeUrl = /^https:\/\//i.test(p.placeUrl || '') ? escapeHtml(p.placeUrl) : '';
       return `<div class="restaurant"><div class="restaurant-rank">${i === 0 ? '👑' : i + 1}</div><div class="restaurant-main"><strong>${escapeHtml(p.name)}</strong>${p.recentlyFound ? '<span class="recent">최근 발견</span>' : ''}<p>${escapeHtml(p.address || '주소 정보 없음')}</p><small>${p.distanceMeters}m · 메뉴 언급 ${p.menuMentions}회 · 평가 ${p.ratingScore > 0 ? '+' : ''}${p.ratingScore}</small>${safeUrl ? `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer">지도에서 보기 ↗</a>` : ''}</div></div>`;
@@ -74,8 +82,9 @@ $('#createBtn').onclick = async () => {
     if (!officeAddress) throw Error('회사 주소를 입력해주세요.');
     if (!lunchStartTime || !lunchEndTime || lunchEndTime <= lunchStartTime) throw Error('점심 종료 시간은 시작 시간보다 늦어야 해요.');
     const data = await api('/api/rounds', { method: 'POST', body: JSON.stringify({ roomName: $('#room').value || '우리 점심팟', title: $('#title').value || '오늘 점심 메뉴 모집', officeAddress, lunchStartTime, lunchEndTime }) });
-    roundId = data.id; joinToken = data.joinToken; shareUrl = data.joinUrl;
+    roundId = data.id; joinToken = data.joinToken; shareUrl = data.joinUrl; ownerToken = data.ownerToken;
     sessionStorage.setItem(`jm-join-${roundId}`, joinToken);
+    localStorage.setItem(`jm-owner-${roundId}`, ownerToken);
     history.replaceState({}, '', `/r/${roundId}`); await refresh();
     toast('방이 만들어졌어요! 링크를 단톡방에 공유해보세요 🥚');
   } catch (error) { toast(error.message); }
@@ -83,13 +92,44 @@ $('#createBtn').onclick = async () => {
 $('#menuForm').onsubmit = async event => {
   event.preventDefault();
   try {
-    const data = await api(`/api/rounds/${roundId}/entries?token=${encodeURIComponent(joinToken)}`, { method: 'PUT', headers: { 'X-Participant-Id': participantId() }, body: JSON.stringify({ menu: $('#menu').value }) });
-    showRound(data); $('#menu').value = ''; toast('메뉴를 익명으로 담았어요! 🍽️');
+    const category = $('#menu').value.trim();
+    if (!category) throw Error('먹고 싶은 음식 카테고리를 입력해주세요.');
+    const data = await api(`/api/rounds/${roundId}/entries?token=${encodeURIComponent(joinToken)}`, { method: 'PUT', headers: { 'X-Participant-Id': participantId() }, body: JSON.stringify({ menu: `${diningMode} · ${category}` }) });
+    showRound(data); $('#menu').value = ''; toast(`${diningMode} · ${category} 선택을 익명으로 저장했어요!`);
   } catch (error) { toast(error.message); }
 };
 $('#cancelBtn').onclick = async () => { try { showRound(await api(`/api/rounds/${roundId}/entries/me?token=${encodeURIComponent(joinToken)}`, { method: 'DELETE', headers: { 'X-Participant-Id': participantId() } })); toast('내 메뉴를 취소했어요.'); } catch (error) { toast(error.message); } };
 $('#spinBtn').onclick = async () => { try { await refresh(); if (roundData.winner) { revealed = false; animate(roundData); } else toast('결과를 준비 중이에요. 잠시 후 다시 눌러주세요.'); } catch (error) { toast(error.message); } };
 $('#shareBtn').onclick = async () => { const url = shareUrl || location.href; const text = `🥚 점메추리알에서 익명으로 오늘 점심 메뉴를 골라요!\n10시 44분까지 메뉴 입력 · 10시 45분 룰렛 결과\n${url}`; if (navigator.share) { try { await navigator.share({ title: '점메추리알 🥚', text, url }); } catch {} } else { try { await navigator.clipboard.writeText(text); toast('초대 링크를 복사했어요. 카카오톡 방에 붙여넣어주세요!'); } catch { toast(url); } } };
+document.querySelectorAll('[data-mode]').forEach(button => button.onclick = () => {
+  diningMode = button.dataset.mode;
+  document.querySelectorAll('[data-mode]').forEach(item => {
+    const active = item.dataset.mode === diningMode;
+    item.classList.toggle('active', active);
+    item.setAttribute('aria-pressed', String(active));
+  });
+});
+$('#settingsBtn').onclick = () => {
+  $('#settingsCard').classList.toggle('hidden');
+  if (!$('#settingsCard').classList.contains('hidden') && roundData && ownerToken) {
+    $('#settingsAddress').value = roundData.officeAddress || '';
+    $('#settingsStart').value = String(roundData.lunchStartTime || '').slice(0,5);
+    $('#settingsEnd').value = String(roundData.lunchEndTime || '').slice(0,5);
+  }
+};
+$('#settingsClose').onclick = () => $('#settingsCard').classList.add('hidden');
+$('#settingsForm').onsubmit = async event => {
+  event.preventDefault();
+  try {
+    if (!ownerToken) throw Error('방장만 설정을 변경할 수 있어요.');
+    const officeAddress = $('#settingsAddress').value.trim(), lunchStartTime = $('#settingsStart').value, lunchEndTime = $('#settingsEnd').value;
+    if (!officeAddress) throw Error('회사 주소를 입력해주세요.');
+    if (!lunchStartTime || !lunchEndTime || lunchEndTime <= lunchStartTime) throw Error('점심 종료 시간은 시작 시간보다 늦어야 해요.');
+    restaurantLoaded = false;
+    showRound(await api(`/api/rounds/${roundId}/settings`, { method: 'PUT', headers: { 'X-Owner-Token': ownerToken }, body: JSON.stringify({ officeAddress, lunchStartTime, lunchEndTime }) }));
+    toast('팀 설정이 저장됐어요. 새 주소로 식당을 찾아요.');
+  } catch (error) { toast(error.message); }
+};
 setInterval(updateCountdown, 1000);
 setInterval(() => { if (roundId && joinToken) refresh().catch(() => {}); }, 15000);
 (async () => {
@@ -97,6 +137,7 @@ setInterval(() => { if (roundId && joinToken) refresh().catch(() => {}); }, 1500
   roundId = match[1]; const params = new URLSearchParams(location.search); joinToken = params.get('token') || sessionStorage.getItem(`jm-join-${roundId}`);
   if (!joinToken) { toast('초대 링크의 token 값이 없어요. 초대 링크를 다시 열어주세요.'); return; }
   sessionStorage.setItem(`jm-join-${roundId}`, joinToken);
+  ownerToken = localStorage.getItem(`jm-owner-${roundId}`);
   shareUrl = `${location.origin}/r/${roundId}?token=${encodeURIComponent(joinToken)}`;
   history.replaceState({}, '', location.pathname);
   try { await refresh(); } catch (error) { toast(error.message); }

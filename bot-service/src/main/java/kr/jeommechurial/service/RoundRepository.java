@@ -16,4 +16,7 @@ public interface RoundRepository {
     List<String> candidates(UUID roundId);
     boolean draw(UUID roundId, String winner, long expectedVersion, boolean reroll);
     boolean close(UUID roundId, long expectedVersion);
+    boolean updateSettings(UUID roundId, String officeAddress, LocalTime lunchStartTime, LocalTime lunchEndTime, long expectedVersion);
+    boolean resetForNewDay(UUID roundId, Instant nextDrawAt, long expectedVersion);
 }
+

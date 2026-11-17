@@ -13,4 +13,7 @@ public interface MenuJpa extends JpaRepository<MenuEntity, UUID> {
     Optional<MenuEntity> findByRoundIdAndParticipantId(UUID roundId, UUID participantId);
     @Modifying @Query("delete from MenuEntity m where m.roundId=:roundId and m.participantId=:participantId")
     void remove(@Param("roundId") UUID roundId, @Param("participantId") UUID participantId);
+    @Modifying @Query("delete from MenuEntity m where m.roundId=:roundId")
+    void deleteByRoundId(@Param("roundId") UUID roundId);
 }
+

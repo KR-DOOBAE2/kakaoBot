@@ -39,9 +39,16 @@ public class LunchService {
         return new CreatedRound(r.id(),owner,r.title(),r.roomName(),join,ownerToken(r.id()));
     }
     @Transactional public RoundView start(UUID id,String token){requireOwner(id,token);drawIfDue(id);return view(id);}
-    @Transactional public RoundView register(UUID id,String token,UUID participantId,String name,String menu){validateJoin(id,token);requireOpen(id);repository.upsertEntry(id,participantId,"익명",clean(menu,80));return view(id);}
-    @Transactional public RoundView cancel(UUID id,String token,UUID participantId){validateJoin(id,token);requireOpen(id);repository.deleteEntry(id,participantId);return view(id);}
-    @Transactional public RoundView get(UUID id,String token){validateJoin(id,token);drawIfDue(id);return view(id);}
+    @Transactional public RoundView register(UUID id,String token,UUID participantId,String name,String menu){validateJoin(id,token);rolloverIfNeeded(id);requireOpen(id);repository.upsertEntry(id,participantId,"익명",clean(menu,80));return view(id);}
+    @Transactional public RoundView cancel(UUID id,String token,UUID participantId){validateJoin(id,token);rolloverIfNeeded(id);requireOpen(id);repository.deleteEntry(id,participantId);return view(id);}
+    @Transactional public RoundView get(UUID id,String token){validateJoin(id,token);rolloverIfNeeded(id);drawIfDue(id);return view(id);}
+    @Transactional public RoundView updateSettings(UUID id,String ownerToken,String address,LocalTime start,LocalTime end){
+        LunchRound round=requireOwner(id,ownerToken);
+        String cleaned=clean(address,160);
+        if(start==null||end==null||!end.isAfter(start))throw new IllegalArgumentException("점심 종료 시간은 시작 시간보다 늦어야 해요.");
+        if(!repository.updateSettings(id,cleaned,start,end,round.version()))throw new IllegalStateException("다른 변경이 먼저 저장됐어요. 새로고침 후 다시 시도해주세요.");
+        return view(id);
+    }
     @Transactional public RoundView draw(UUID id,String token,boolean reroll){LunchRound r=requireOwner(id,token);if(r.drawAt()!=null){if(reroll)throw new IllegalStateException("예약된 룰렛 결과는 다시 뽑을 수 없어요.");if(clock.instant().isBefore(r.drawAt()))throw new IllegalStateException("룰렛은 오전 10시 45분에 공개돼요.");drawIfDue(id);return view(id);}if(r.status()!=RoundStatus.OPEN&&!(reroll&&r.status()==RoundStatus.DRAWN))throw new IllegalStateException("현재 상태에서는 추첨할 수 없어요.");List<String> c=new ArrayList<>(repository.candidates(id));if(reroll&&r.winner()!=null)c.removeIf(r.winner()::equalsIgnoreCase);if(c.isEmpty())throw new IllegalStateException("추첨할 메뉴가 없어요.");String winner=c.get(random.nextInt(c.size()));if(!repository.draw(id,winner,r.version(),reroll))throw new IllegalStateException("다른 요청이 먼저 상태를 변경했어요. 새로고침 후 다시 시도해주세요.");return view(id);}
     @Transactional public RoundView close(UUID id,String token){LunchRound r=requireOwner(id,token);if(r.drawAt()!=null)throw new IllegalStateException("익명 메뉴 모집은 오전 10시 45분에 자동 마감돼요.");if(!repository.close(id,r.version()))throw new IllegalStateException("다른 요청이 먼저 상태를 변경했어요. 새로고침 후 다시 시도해주세요.");return view(id);}
     @Transactional public void drawDueOpenRounds(){for(LunchRound round:repository.findDueOpen(clock.instant()))drawIfDue(round.id());}
@@ -51,6 +58,7 @@ public class LunchService {
     private String hmac(String value){try{Mac m=Mac.getInstance("HmacSHA256");m.init(new SecretKeySpec(ownerSecret,"HmacSHA256"));return HexFormat.of().formatHex(m.doFinal(value.getBytes(StandardCharsets.UTF_8)));}catch(Exception e){throw new IllegalStateException(e);}}
     private void validateJoin(UUID id,String token){LunchRound r=repository.find(id).orElseThrow(()->new NoSuchElementException("방을 찾을 수 없어요."));if(token==null||!MessageDigest.isEqual(hash(token).getBytes(StandardCharsets.UTF_8),r.joinTokenHash().getBytes(StandardCharsets.UTF_8)))throw new SecurityException("참여 링크가 올바르지 않아요.");}
     private void requireOpen(UUID id){LunchRound r=repository.find(id).orElseThrow();if(r.status()!=RoundStatus.OPEN||r.drawAt()!=null&&!clock.instant().isBefore(r.drawAt()))throw new IllegalStateException("메뉴 입력은 오전 10시 44분까지예요. 룰렛 결과를 기다려주세요.");}
+    private void rolloverIfNeeded(UUID id){LunchRound r=repository.find(id).orElseThrow();if(r.drawAt()==null)return;LocalDate ballotDay=r.drawAt().atZone(SEOUL).toLocalDate();LocalDate today=clock.instant().atZone(SEOUL).toLocalDate();if(today.isAfter(ballotDay)){if(!repository.resetForNewDay(id,nextDrawAt(clock.instant()),r.version()))throw new IllegalStateException("새 점심 모집을 준비 중이에요. 잠시 후 새로고침해주세요.");}}
     private void drawIfDue(UUID id){LunchRound r=repository.find(id).orElseThrow();if(r.status()!=RoundStatus.OPEN||r.drawAt()==null||clock.instant().isBefore(r.drawAt()))return;List<String> choices=repository.candidates(id);if(choices.isEmpty()){repository.close(id,r.version());return;}String winner=choices.get(random.nextInt(choices.size()));repository.draw(id,winner,r.version(),false);}
     private RoundView view(UUID id){LunchRound r=repository.find(id).orElseThrow(()->new NoSuchElementException("방을 찾을 수 없어요."));List<MenuEntry> anonymous=repository.entries(id).stream().map(e->new MenuEntry(e.id(),e.roundId(),e.participantId(),"익명",e.menu(),e.createdAt(),e.updatedAt())).toList();return new RoundView(id,r.title(),r.roomName(),r.status(),r.winner(),anonymous,repository.candidates(id),r.createdAt(),r.updatedAt(),r.drawAt(),r.officeAddress(),r.lunchStartTime(),r.lunchEndTime());}
     static Instant nextDrawAt(Instant now){ZonedDateTime local=now.atZone(SEOUL);ZonedDateTime draw=local.toLocalDate().atTime(10,45).atZone(SEOUL);return local.isBefore(draw)?draw.toInstant():draw.plusDays(1).toInstant();}
@@ -58,3 +66,4 @@ public class LunchService {
     private static String hash(String s){try{return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(s.getBytes(StandardCharsets.UTF_8)));}catch(Exception e){throw new IllegalStateException(e);}}
     private static String clean(String s,int n){if(s==null||s.isBlank())throw new IllegalArgumentException("필수 입력을 확인해주세요.");s=s.strip();if(s.length()>n)throw new IllegalArgumentException("입력이 너무 길어요.");return s;}
 }
+

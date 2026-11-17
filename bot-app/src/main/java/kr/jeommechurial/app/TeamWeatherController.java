@@ -47,8 +47,10 @@ public class TeamWeatherController {
 
     private Weather fetch(String address) {
         RestaurantSearch.Location point = locations.geocode(address);
+        double latitude = Math.round(point.latitude() * 10_000d) / 10_000d;
+        double longitude = Math.round(point.longitude() * 10_000d) / 10_000d;
         JsonNode root = weather.get().uri(builder -> builder.path("/weatherapi/locationforecast/2.0/compact")
-                .queryParam("lat", point.latitude()).queryParam("lon", point.longitude()).build())
+                .queryParam("lat", latitude).queryParam("lon", longitude).build())
                 .retrieve().body(JsonNode.class);
         JsonNode first = root == null ? null : root.path("properties").path("timeseries").path(0);
         JsonNode details = first == null ? null : first.path("data").path("instant").path("details");

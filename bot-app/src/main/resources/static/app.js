@@ -86,12 +86,14 @@ async function loadWeather(address) {
     if (roundData.officeAddress !== address) return;
     weatherAddress = address; weatherCheckedAt = Date.now();
     const icon = { sunny: '☀️', cloudy: '☁️', rain: '🌧️', snow: '❄️' }[result.theme] || '🌤️';
-    $('#weatherStatus').textContent = `${icon} 오늘의 날씨 ${result.label} · ${Math.round(result.temperatureCelsius)}°C · 자료: ${result.source}`;
+    $('#weatherStatus').textContent = `${icon} 오늘의 날씨 ${result.label} · ${Math.round(result.temperatureCelsius)}°C`;
+    $('#weatherCredit').classList.remove('hidden');
     $('#weatherHero').classList.remove('weather-sunny', 'weather-cloudy', 'weather-rain', 'weather-snow');
     $('#weatherHero').classList.add(`weather-${result.theme}`);
   } catch (error) {
     weatherAddress = address; weatherCheckedAt = Date.now();
     $('#weatherStatus').textContent = '🌤️ 현재 날씨를 확인하지 못했어요.';
+    $('#weatherCredit').classList.add('hidden');
   } finally { weatherLoading = false; }
 }
 async function loadRestaurants() {

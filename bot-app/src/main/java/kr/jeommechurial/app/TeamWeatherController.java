@@ -27,10 +27,12 @@ public class TeamWeatherController {
     private final Map<String, Cached> cache = new ConcurrentHashMap<>();
 
     public TeamWeatherController(LunchService rounds, RestaurantSearch locations, RestClient.Builder builder,
-                                 @Value("${app.weather-url:https://api.open-meteo.com}") String weatherUrl) {
+                                 @Value("${app.weather-url:https://api.met.no}") String weatherUrl) {
         this.rounds = rounds;
         this.locations = locations;
-        this.weather = builder.baseUrl(weatherUrl).build();
+        this.weather = builder.baseUrl(weatherUrl)
+                .defaultHeader("User-Agent", "Jeommechurial/0.1 (https://kakaobot-nkrp.onrender.com)")
+                .build();
     }
 
     @GetMapping
@@ -40,32 +42,35 @@ public class TeamWeatherController {
             throw new IllegalStateException("회사 주소를 설정하면 날씨를 볼 수 있어요.");
         String address = round.officeAddress();
         return cache.compute(address, (key, prior) -> prior != null && Instant.now().isBefore(prior.expiresAt())
-                ? prior : new Cached(fetch(address), Instant.now().plus(Duration.ofMinutes(30)))).weather();
+                ? prior : new Cached(fetch(address), Instant.now().plus(Duration.ofHours(3)))).weather();
     }
 
     private Weather fetch(String address) {
         RestaurantSearch.Location point = locations.geocode(address);
-        JsonNode root = weather.get().uri(builder -> builder.path("/v1/forecast")
-                .queryParam("latitude", point.latitude()).queryParam("longitude", point.longitude())
-                .queryParam("current", "temperature_2m,weather_code,is_day")
-                .queryParam("timezone", "Asia/Seoul").build()).retrieve().body(JsonNode.class);
-        JsonNode current = root == null ? null : root.path("current");
-        if (current == null || !current.has("weather_code") || !current.has("temperature_2m"))
+        JsonNode root = weather.get().uri(builder -> builder.path("/weatherapi/locationforecast/2.0/compact")
+                .queryParam("lat", point.latitude()).queryParam("lon", point.longitude()).build())
+                .retrieve().body(JsonNode.class);
+        JsonNode first = root == null ? null : root.path("properties").path("timeseries").path(0);
+        JsonNode details = first == null ? null : first.path("data").path("instant").path("details");
+        if (first == null || details == null || !details.has("air_temperature"))
             throw new IllegalStateException("현재 날씨를 불러오지 못했어요.");
-        String theme = classify(current.path("weather_code").asInt());
+        JsonNode data = first.path("data");
+        String symbol = data.path("next_1_hours").path("summary").path("symbol_code").asText();
+        if (symbol.isBlank()) symbol = data.path("next_6_hours").path("summary").path("symbol_code").asText();
+        if (symbol.isBlank()) symbol = data.path("next_12_hours").path("summary").path("symbol_code").asText();
+        String theme = classifySymbol(symbol);
         return new Weather(theme, switch (theme) {
             case "sunny" -> "맑음";
             case "rain" -> "비";
             case "snow" -> "눈";
             default -> "흐림";
-        }, current.path("temperature_2m").asDouble(), current.path("time").asText(), "Open-Meteo");
+        }, details.path("air_temperature").asDouble(), first.path("time").asText(), "MET Norway");
     }
 
-    static String classify(int code) {
-        if (code == 0 || code == 1) return "sunny";
-        if (code == 2 || code == 3 || code == 45 || code == 48) return "cloudy";
-        if ((code >= 71 && code <= 77) || code == 85 || code == 86) return "snow";
-        if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82) || code >= 95) return "rain";
+    static String classifySymbol(String symbol) {
+        if (symbol.contains("snow") || symbol.contains("sleet")) return "snow";
+        if (symbol.contains("rain")) return "rain";
+        if (symbol.startsWith("clearsky") || symbol.startsWith("fair")) return "sunny";
         return "cloudy";
     }
 

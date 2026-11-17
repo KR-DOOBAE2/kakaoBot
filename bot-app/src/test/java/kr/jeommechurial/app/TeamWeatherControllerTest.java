@@ -5,13 +5,13 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class TeamWeatherControllerTest {
-    @Test void groupsWmoWeatherCodesIntoFourThemes() {
-        assertEquals("sunny", TeamWeatherController.classify(0));
-        assertEquals("cloudy", TeamWeatherController.classify(3));
-        assertEquals("rain", TeamWeatherController.classify(61));
-        assertEquals("rain", TeamWeatherController.classify(95));
-        assertEquals("snow", TeamWeatherController.classify(73));
-        assertEquals("snow", TeamWeatherController.classify(85));
+    @Test void groupsForecastSymbolsIntoFourThemes() {
+        assertEquals("sunny", TeamWeatherController.classifySymbol("clearsky_day"));
+        assertEquals("sunny", TeamWeatherController.classifySymbol("fair_night"));
+        assertEquals("cloudy", TeamWeatherController.classifySymbol("partlycloudy_day"));
+        assertEquals("rain", TeamWeatherController.classifySymbol("lightrainshowers_day"));
+        assertEquals("snow", TeamWeatherController.classifySymbol("lightsnowshowers_day"));
+        assertEquals("snow", TeamWeatherController.classifySymbol("sleet"));
     }
 }
 

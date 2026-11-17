@@ -24,7 +24,7 @@ app:
   place-provider: ${PLACE_PROVIDER:osm}
   osm-geocoder-url: ${OSM_GEOCODER_URL:https://nominatim.openstreetmap.org}
   osm-overpass-url: ${OSM_OVERPASS_URL:https://overpass-api.de}
-  weather-url: ${WEATHER_URL:https://api.open-meteo.com}
+  weather-url: ${WEATHER_URL:https://api.met.no}
   kakao-skill-secret: ${KAKAO_SKILL_SECRET:}
   public-base-url: ${PUBLIC_BASE_URL:}
   kakao-rest-api-key: ${KAKAO_REST_API_KEY:}

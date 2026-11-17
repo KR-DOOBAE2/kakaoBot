@@ -4,9 +4,12 @@ let restaurantLoading = false, restaurantLoaded = false;
 let weatherLoading = false, weatherAddress = null, weatherCheckedAt = 0;
 const emojis = ['🍜', '🍚', '🥟', '🍛', '🍣', '🍲', '🥗', '🍔'];
 const characters = [
-  { id: 'chiikawa', name: '치이카와' }, { id: 'usagi', name: '우사기' },
-  { id: 'hachiware', name: '하치와레' }, { id: 'momonga', name: '모몽가' },
-  { id: 'rakko', name: '랏코' }, { id: 'kurimanju', name: '쿠리만쥬' }
+  { id: 'chiikawa', name: '치이카와', plateY: 65, happyPlateY: 58 },
+  { id: 'usagi', name: '우사기', plateY: 72, happyPlateY: 62 },
+  { id: 'hachiware', name: '하치와레', plateY: 68, happyPlateY: 60 },
+  { id: 'momonga', name: '모몽가', plateY: 64, happyPlateY: 61 },
+  { id: 'rakko', name: '랏코', plateY: 56, happyPlateY: 53 },
+  { id: 'kurimanju', name: '쿠리만쥬', plateY: 67, happyPlateY: 60 }
 ];
 function characterFor(menu, drawAt) {
   let hash = 2166136261;
@@ -75,7 +78,7 @@ function renderIllustrations(data) {
   const ordered = [...data.candidates].sort((a, b) => Number(b === data.winner && revealed) - Number(a === data.winner && revealed));
   $('#menuIllustrations').innerHTML = ordered.map(menu => {
     const c = characterFor(menu, data.drawAt), won = menu === data.winner && revealed;
-    return `<div class="menu-illustration ${won ? 'is-winner' : ''}"><div class="character-art"><img src="/characters/${c.id}${won ? '-happy' : ''}.png" alt="${c.name}가 ${escapeHtml(menu)} 음식을 들고 있어요" loading="lazy"><span class="plate-food" aria-hidden="true">${foodFor(menu)}</span></div><strong>${escapeHtml(menu)}</strong><small>${c.name}${won ? ' · 당첨! 🎉' : ''}</small></div>`;
+    return `<div class="menu-illustration ${won ? 'is-winner' : ''}"><div class="character-art" style="--plate-y:${won ? c.happyPlateY : c.plateY}%"><img src="/characters/${c.id}${won ? '-happy' : ''}.png" alt="${c.name}가 ${escapeHtml(menu)} 음식을 들고 있어요" loading="lazy"><span class="plate-food" aria-hidden="true"><span>${foodFor(menu)}</span></span></div><strong>${escapeHtml(menu)}</strong><small>${c.name}${won ? ' · 당첨! 🎉' : ''}</small></div>`;
   }).join('');
 }
 async function loadWeather(address) {

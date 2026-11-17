@@ -3,6 +3,10 @@ const messages = $('#messages');
 const menus = [];
 let phase = 'setup', winner = null, rolling = false, settings = null;
 const characters = ['chiikawa', 'usagi', 'hachiware', 'momonga', 'rakko', 'kurimanju'];
+const plateY = {
+  chiikawa: [65, 58], usagi: [72, 62], hachiware: [68, 60],
+  momonga: [64, 61], rakko: [56, 53], kurimanju: [67, 60]
+};
 function characterFor(menu) {
   let hash = 2166136261;
   for (const char of menu) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
@@ -19,10 +23,13 @@ function foodFor(menu) {
 }
 function addArt(bubble, menu, happy = false) {
   const art = document.createElement('div'); art.className = `demo-art${happy ? ' happy' : ''}`;
+  const character = characterFor(menu);
+  art.style.setProperty('--plate-y', `${plateY[character][happy ? 1 : 0]}%`);
   const image = document.createElement('img');
-  image.src = `/characters/${characterFor(menu)}${happy ? '-happy' : ''}.png`;
+  image.src = `/characters/${character}${happy ? '-happy' : ''}.png`;
   image.alt = `${menu} 음식을 들고 있는 캐릭터${happy ? '가 기뻐하는 모습' : ''}`;
-  const food = document.createElement('span'); food.textContent = foodFor(menu); food.setAttribute('aria-hidden', 'true');
+  const food = document.createElement('span'); food.className = 'demo-plate-food'; food.setAttribute('aria-hidden', 'true');
+  const icon = document.createElement('span'); icon.textContent = foodFor(menu); food.append(icon);
   art.append(image, food); bubble.append(art);
 }
 function message(text, kind = 'bot', action = false) {

@@ -55,7 +55,7 @@ public class RoundRestaurantService {
         return new Recommendation(round.winner(), !matching.isEmpty(), ranked.get(0), ranked);
     }
 
-    static boolean matches(String menu, String name, String category) {
+    public static boolean matches(String menu, String name, String category) {
         String m = normalize(menu), place = normalize(name + " " + category);
         if (m.length() >= 2 && place.contains(m)) return true;
         for (var group : CUISINES.entrySet()) {
@@ -82,4 +82,3 @@ public class RoundRestaurantService {
     public record Recommendation(String winningMenu, boolean menuMatched, Restaurant topPick, List<Restaurant> restaurants) {}
     private record CacheKey(UUID roundId, Instant drawAt, String address, String winner) {}
 }
-

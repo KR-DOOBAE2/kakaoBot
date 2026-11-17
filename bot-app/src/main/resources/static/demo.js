@@ -2,6 +2,7 @@ const $ = selector => document.querySelector(selector);
 const messages = $('#messages');
 const menus = [];
 let phase = 'setup', winner = null, rolling = false, settings = null;
+let recommendationShown = false, recommendationGeneration = 0;
 const characters = ['chiikawa', 'usagi', 'hachiware', 'momonga', 'rakko', 'kurimanju'];
 let foodCatalog = [];
 function catalogFoodFor(menu) {
@@ -54,6 +55,49 @@ function addArt(bubble, menu, happy = false) {
   const icon = document.createElement('span'); icon.textContent = foodFor(menu); food.append(icon);
   art.append(image, food); bubble.append(art);
 }
+async function recommendRestaurants(bubble = message('📍 회사 주변 식당을 찾고 있어요…')) {
+  const generation = recommendationGeneration;
+  bubble.textContent = '📍 회사 주변 1km에서 식당을 찾고 있어요…';
+  try {
+    const response = await fetch('/api/demo/restaurants', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ address: settings.address, menu: winner })
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || '식당을 찾지 못했어요.');
+    if (generation !== recommendationGeneration) return;
+    bubble.replaceChildren();
+    const title = document.createElement('strong');
+    title.textContent = result.restaurants.length
+      ? result.menuMatched
+        ? `📍 ${result.winningMenu} 관련 식당 ${result.restaurants.length}곳`
+        : `📍 ${result.winningMenu} 관련 식당이 없어 주변 식당 ${result.restaurants.length}곳`
+      : '📍 반경 1km에서 식당을 찾지 못했어요.';
+    bubble.append(title);
+    for (const [index, place] of result.restaurants.entries()) {
+      const item = document.createElement('div'); item.className = 'demo-restaurant';
+      const name = document.createElement('strong'); name.textContent = `${index + 1}. ${place.name}`;
+      const details = document.createElement('small');
+      details.textContent = `${place.distanceMeters}m · ${place.address || '주소 정보 없음'}`;
+      item.append(name, details);
+      if (/^https:\/\//i.test(place.placeUrl || '')) {
+        const link = document.createElement('a'); link.href = place.placeUrl;
+        link.target = '_blank'; link.rel = 'noopener noreferrer';
+        link.textContent = '지도에서 보기 ↗'; item.append(link);
+      }
+      bubble.append(item);
+    }
+    const credit = document.createElement('small'); credit.className = 'demo-restaurant-credit';
+    credit.textContent = '실시간 OpenStreetMap 자료 · 시연에서는 신규 여부와 평점이 반영되지 않아요.';
+    bubble.append(credit);
+    messages.scrollTop = messages.scrollHeight;
+  } catch (error) {
+    if (generation !== recommendationGeneration) return;
+    bubble.textContent = `식당 검색을 완료하지 못했어요. ${error.message}`;
+    const retry = document.createElement('button'); retry.textContent = '식당 다시 찾기';
+    retry.onclick = () => recommendRestaurants(bubble); bubble.append(retry);
+  }
+}
 function message(text, kind = 'bot', action = false) {
   const row = document.createElement('div'); row.className = `message ${kind}`;
   if (kind !== 'mine') { const avatar = document.createElement('span'); avatar.className = 'avatar'; avatar.textContent = kind === 'anonymous' ? '🎭' : '🥚'; row.append(avatar); }
@@ -92,7 +136,8 @@ function settingsForm() {
   bubble.append(form); messages.scrollTop = messages.scrollHeight;
 }
 function reset() {
-  menus.splice(0); phase = 'setup'; winner = null; rolling = false; settings = null; messages.replaceChildren();
+  menus.splice(0); phase = 'setup'; winner = null; rolling = false; settings = null;
+  recommendationShown = false; recommendationGeneration++; messages.replaceChildren();
   $('#clockLabel').textContent = '오전 10:30 · 회사 설정 중';
   $('#chatInput').value = ''; $('#chatInput').placeholder = '방장이 먼저 설정을 저장해주세요';
   const day = document.createElement('div'); day.className = 'day'; day.textContent = '오늘 · 점심 메뉴 모집'; messages.append(day);
@@ -131,7 +176,9 @@ function spin() {
   setTimeout(() => {
     clearInterval(timer); bubble.textContent = `🎉 오늘의 메뉴는 ${winner}!\n\n모두 같은 결과를 봐요. 맛있게 드세요 🐣`;
     addArt(bubble, winner, true);
-    rolling = false; message('식사 후 오후 1시부터 방문한 식당에 좋아요/싫어요 평가를 남길 수 있어요.');
+    rolling = false;
+    if (!recommendationShown) { recommendationShown = true; recommendRestaurants(); }
+    message('식사 후 오후 1시부터 방문한 식당에 좋아요/싫어요 평가를 남길 수 있어요.');
   }, 2800);
 }
 $('#sendBtn').onclick = () => submit($('#chatInput').value);

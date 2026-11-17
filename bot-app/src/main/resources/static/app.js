@@ -2,6 +2,7 @@ const $ = selector => document.querySelector(selector);
 let roundId, joinToken, shareUrl, roundData, ownerToken, diningMode = '매장', spinning = false, revealed = false, lastDrawAt;
 let restaurantLoading = false, restaurantLoaded = false;
 let weatherLoading = false, weatherAddress = null, weatherCheckedAt = 0;
+let foodCatalog = [];
 const emojis = ['🍜', '🍚', '🥟', '🍛', '🍣', '🍲', '🥗', '🍔'];
 const characters = [
   { id: 'chiikawa', name: '치이카와', plateY: 65, happyPlateY: 58 },
@@ -28,6 +29,20 @@ function foodFor(menu) {
   if (/샐러드|채식/.test(name)) return '🥗';
   if (/한식|밥|비빔/.test(name)) return '🍚';
   return '🍽️';
+}
+function catalogFoodFor(menu) {
+  const name = menu.replace(/^(매장|배달)\s*·\s*/, '').replace(/\s+/g, '');
+  const aliases = { 돈가스: '돈까스', 자장면: '짜장면', 스시: '초밥', 라면사리: '라면' };
+  const normalized = aliases[name] || name;
+  return foodCatalog.find(food => food.name.replace(/\s+/g, '') === normalized);
+}
+async function loadFoodCatalog() {
+  try {
+    foodCatalog = await api('/api/foods');
+    const suggestions = $('#foodSuggestions');
+    if (suggestions) suggestions.innerHTML = foodCatalog.map(food => `<option value="${escapeHtml(food.name)}"></option>`).join('');
+    if (roundData?.candidates?.length) renderIllustrations(roundData);
+  } catch (error) { console.warn('Food catalog unavailable', error); }
 }
 function toast(message) { const el = $('#toast'); el.textContent = message; el.classList.add('on'); setTimeout(() => el.classList.remove('on'), 2600); }
 function participantId() { const key = `jm-p-${roundId}`; let id = localStorage.getItem(key); if (!id) { id = crypto.randomUUID(); localStorage.setItem(key, id); } return id; }
@@ -77,8 +92,12 @@ function showRound(data) {
 function renderIllustrations(data) {
   const ordered = [...data.candidates].sort((a, b) => Number(b === data.winner && revealed) - Number(a === data.winner && revealed));
   $('#menuIllustrations').innerHTML = ordered.map(menu => {
-    const c = characterFor(menu, data.drawAt), won = menu === data.winner && revealed;
-    return `<div class="menu-illustration ${won ? 'is-winner' : ''}"><div class="character-art" style="--plate-y:${won ? c.happyPlateY : c.plateY}%"><img src="/characters/${c.id}${won ? '-happy' : ''}.png" alt="${c.name}가 ${escapeHtml(menu)} 음식을 들고 있어요" loading="lazy"><span class="plate-food" aria-hidden="true"><span>${foodFor(menu)}</span></span></div><strong>${escapeHtml(menu)}</strong><small>${c.name}${won ? ' · 당첨! 🎉' : ''}</small></div>`;
+    const catalogFood = catalogFoodFor(menu), c = catalogFood ? characters.find(item => item.id === catalogFood.characterId) : characterFor(menu, data.drawAt);
+    const won = menu === data.winner && revealed;
+    const art = catalogFood
+      ? `<img src="${escapeHtml(catalogFood.imagePath)}" alt="${c.name}가 ${escapeHtml(menu)} 음식을 접시에 들고 있어요" loading="lazy">`
+      : `<img src="/characters/${c.id}${won ? '-happy' : ''}.png" alt="${c.name}가 ${escapeHtml(menu)} 음식을 들고 있어요" loading="lazy"><span class="plate-food" aria-hidden="true"><span>${foodFor(menu)}</span></span>`;
+    return `<div class="menu-illustration ${won ? 'is-winner' : ''}"><div class="character-art" style="--plate-y:${won ? c.happyPlateY : c.plateY}%">${art}</div><strong>${escapeHtml(menu)}</strong><small>${c.name}${won ? ' · 당첨! 🎉' : ''}</small></div>`;
   }).join('');
 }
 async function loadWeather(address) {
@@ -186,6 +205,7 @@ $('#settingsForm').onsubmit = async event => {
   } catch (error) { toast(error.message); }
 };
 setInterval(updateCountdown, 1000);
+loadFoodCatalog();
 setInterval(() => { if (roundId && joinToken) refresh().catch(() => {}); }, 15000);
 (async () => {
   const match = location.pathname.match(/^\/r\/([0-9a-f-]{36})$/i); if (!match) return;
@@ -197,4 +217,3 @@ setInterval(() => { if (roundId && joinToken) refresh().catch(() => {}); }, 1500
   history.replaceState({}, '', location.pathname);
   try { await refresh(); } catch (error) { toast(error.message); }
 })();
-

@@ -153,6 +153,12 @@ $env:KAKAO_LUNCH_EVENT_NAME="lunch_recommendation"
 
 ## API 요약
 
+### 점심 음식 그림 카탈로그
+
+`GET /api/foods`는 Flyway `V8__food_catalog.sql`이 저장한 점심 메뉴 50개와 캐릭터 그림 경로를 반환합니다. `bot-app/src/main/resources/static/food-art/`의 각 PNG는 캐릭터와 음식이 함께 그려진 투명 배경 이미지입니다. 화면에서 메뉴명이 정확히 일치하면 이 그림을 사용하고, 목록 밖 메뉴는 기존 기본 그림을 표시합니다. 이미지 파일은 애플리케이션 정적 파일로 배포하고, PostgreSQL에는 메뉴명·순서·캐릭터·이미지 경로를 저장합니다.
+
+앞쪽 메뉴는 [한국갤럽의 2024년 한국음식 선호 조사](https://www.gallup.co.kr/dir/GallupReport/GallupReport%2820240626%29_%ED%95%9C%EA%B5%AD%EC%9D%B8%EC%9D%B4%EC%A2%8B%EC%95%84%ED%95%98%EB%8A%9450%EA%B0%80%EC%A7%80.pdf)를 참고했습니다. 김치처럼 단독 점심 식사가 아닌 항목은 제외했습니다. 나머지 메뉴와 50개 전체의 배열 순서는 서비스용 편집 선정이며, 전국 선호도 공식 1~50위가 아닙니다.
+
 | 동작 | 요청 |
 |---|---|
 | 방 생성 | `POST /api/rounds` `{ "title":"오늘 점심", "roomName":"점심팟", "officeAddress":"서울 강남구 테헤란로 123", "lunchStartTime":"12:00", "lunchEndTime":"13:00" }` |
@@ -178,4 +184,3 @@ Flyway는 시작 시 `V1__initial_schema.sql`을 적용하며 Hibernate는 스�
 `./gradlew test`에는 익명 표시, 중복 후보 제거, 메뉴 변경·취소, 10시 45분 마감과 한 번만 확정되는 결과 테스트가 포함됩니다. 시연 화면은 실제 카카오톡이 아닌 브라우저 가상 대화입니다. 그룹 챗봇 Beta 제휴 승인 전에는 일반 카카오톡 단체방에 봇을 직접 초대할 수 없습니다.
 
 메뉴 제출자의 실명은 요청하지 않으며 기존 저장 이름도 Flyway 마이그레이션에서 익명으로 바뀝니다. 무료 Render 인스턴스가 잠들거나 예약 작업이 지연되면 10시 45분 즉시 처리되지 않을 수 있으며, 그 후 첫 조회 때 결과를 확정합니다.
-

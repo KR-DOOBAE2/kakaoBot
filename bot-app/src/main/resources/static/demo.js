@@ -3,6 +3,26 @@ const messages = $('#messages');
 const menus = [];
 let phase = 'setup', winner = null, rolling = false, settings = null;
 const characters = ['chiikawa', 'usagi', 'hachiware', 'momonga', 'rakko', 'kurimanju'];
+let foodCatalog = [];
+function catalogFoodFor(menu) {
+  const normalized = menu.replace(/\s+/g, '');
+  const aliases = { 돈가스: '돈까스', 자장면: '짜장면', 스시: '초밥' };
+  return foodCatalog.find(food => food.name.replace(/\s+/g, '') === (aliases[normalized] || normalized));
+}
+function applyCatalogArt(art, menu) {
+  const food = catalogFoodFor(menu);
+  if (!food) return false;
+  const image = document.createElement('img');
+  image.src = food.imagePath;
+  image.alt = `${food.name}을 접시에 든 캐릭터`;
+  art.replaceChildren(image);
+  art.classList.add('catalog-art');
+  return true;
+}
+fetch('/api/foods').then(response => response.ok ? response.json() : []).then(foods => {
+  foodCatalog = foods;
+  document.querySelectorAll('.demo-art[data-menu]').forEach(art => applyCatalogArt(art, art.dataset.menu));
+}).catch(() => {});
 const plateY = {
   chiikawa: [65, 58], usagi: [72, 62], hachiware: [68, 60],
   momonga: [64, 61], rakko: [56, 53], kurimanju: [67, 60]
@@ -23,6 +43,8 @@ function foodFor(menu) {
 }
 function addArt(bubble, menu, happy = false) {
   const art = document.createElement('div'); art.className = `demo-art${happy ? ' happy' : ''}`;
+  art.dataset.menu = menu;
+  if (applyCatalogArt(art, menu)) { bubble.append(art); return; }
   const character = characterFor(menu);
   art.style.setProperty('--plate-y', `${plateY[character][happy ? 1 : 0]}%`);
   const image = document.createElement('img');
@@ -121,4 +143,3 @@ $('#plusBtn').onclick = () => $('#chatInput').focus();
 $('#sampleBtn').onclick = () => { if (phase !== 'collect') return; ['김치찌개', '돈까스', '초밥'].forEach(submit); };
 document.querySelectorAll('[data-menu]').forEach(button => button.onclick = () => submit(button.dataset.menu));
 reset();
-

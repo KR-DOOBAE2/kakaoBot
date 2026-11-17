@@ -88,7 +88,10 @@ async function recommendRestaurants(bubble = message('📍 회사 주변 식당�
       bubble.append(item);
     }
     const credit = document.createElement('small'); credit.className = 'demo-restaurant-credit';
-    credit.textContent = '실시간 OpenStreetMap 자료 · 시연에서는 신규 여부와 평점이 반영되지 않아요.';
+    credit.textContent = '시연에서는 신규 여부와 평점이 반영되지 않아요. 자료: ';
+    const attribution = document.createElement('a'); attribution.href = 'https://www.openstreetmap.org/copyright';
+    attribution.target = '_blank'; attribution.rel = 'noopener noreferrer';
+    attribution.textContent = '© OpenStreetMap contributors'; credit.append(attribution);
     bubble.append(credit);
     messages.scrollTop = messages.scrollHeight;
   } catch (error) {

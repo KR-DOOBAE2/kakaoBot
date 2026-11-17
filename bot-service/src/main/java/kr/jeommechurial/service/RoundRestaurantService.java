@@ -37,8 +37,8 @@ public class RoundRestaurantService {
 
     private Recommendation find(RoundView round) {
         RestaurantSearch.Location location = search.geocode(round.officeAddress());
-        List<PlaceCandidate> places = restaurants.discover(search.nearbyRestaurants(
-                location.latitude(), location.longitude(), 1000));
+        List<PlaceCandidate> places = restaurants.discover(search.nearbyRestaurantsForMenu(
+                location.latitude(), location.longitude(), 1000, round.winner()));
         if (places.isEmpty()) throw new IllegalStateException("회사 주변 1km에서 식당을 찾지 못했어요. 주소를 확인해주세요.");
         List<PlaceCandidate> matching = places.stream()
                 .filter(p -> matches(round.winner(), p.name(), p.category())).toList();

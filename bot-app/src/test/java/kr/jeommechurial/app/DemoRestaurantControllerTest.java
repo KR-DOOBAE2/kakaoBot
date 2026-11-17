@@ -20,6 +20,7 @@ class DemoRestaurantControllerTest {
         assertThat(result.restaurants()).extracting(DemoRestaurantController.Place::name)
                 .containsExactly("김치찌개집", "한식당");
         assertThat(search.requestedRadius).isEqualTo(1000);
+        assertThat(search.requestedMenu).isEqualTo("김치찌개");
     }
 
     private static PlaceSearchResult place(String name, String category, int distance) {
@@ -29,6 +30,7 @@ class DemoRestaurantControllerTest {
 
     private static class FakeSearch implements RestaurantSearch {
         private int requestedRadius;
+        private String requestedMenu;
 
         @Override
         public Location geocode(String address) {
@@ -41,6 +43,13 @@ class DemoRestaurantControllerTest {
             requestedRadius = radiusMeters;
             return List.of(place("치킨집", "chicken", 100), place("한식당", "korean", 450),
                     place("김치찌개집", "korean", 250));
+        }
+
+        @Override
+        public List<PlaceSearchResult> nearbyRestaurantsForMenu(double latitude, double longitude,
+                                                                 int radiusMeters, String menu) {
+            requestedMenu = menu;
+            return nearbyRestaurants(latitude, longitude, radiusMeters);
         }
     }
 }

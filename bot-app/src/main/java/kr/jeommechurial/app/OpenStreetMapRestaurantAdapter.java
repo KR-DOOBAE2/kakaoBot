@@ -11,6 +11,7 @@ import org.springframework.web.client.RestClient;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -22,7 +23,7 @@ public class OpenStreetMapRestaurantAdapter implements RestaurantSearch {
     private final RestClient geocoder;
     private final RestClient places;
     private final Map<String, Location> geocodeCache = new ConcurrentHashMap<>();
-    private long lastGeocodeAt;
+    private long lastNominatimAt;
 
     public OpenStreetMapRestaurantAdapter(RestClient.Builder builder,
                                           @Value("${app.osm-geocoder-url:https://nominatim.openstreetmap.org}") String geocoderUrl,
@@ -36,16 +37,7 @@ public class OpenStreetMapRestaurantAdapter implements RestaurantSearch {
         String query = address.strip();
         Location cached = geocodeCache.get(query);
         if (cached != null) return cached;
-        long remaining = 1_000_000_000L - (System.nanoTime() - lastGeocodeAt);
-        if (lastGeocodeAt != 0 && remaining > 0) {
-            try {
-                Thread.sleep(remaining / 1_000_000L + 1);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new IllegalStateException("주소 검색이 중단됐어요.", e);
-            }
-        }
-        lastGeocodeAt = System.nanoTime();
+        paceNominatim();
         JsonNode results = geocoder.get().uri(b -> b.path("/search").queryParam("q", query)
                         .queryParam("format", "jsonv2").queryParam("limit", 1)
                         .queryParam("countrycodes", "kr").build())
@@ -56,6 +48,68 @@ public class OpenStreetMapRestaurantAdapter implements RestaurantSearch {
                 results.get(0).path("lon").asDouble());
         geocodeCache.put(query, location);
         return location;
+    }
+
+    @Override
+    public synchronized List<PlaceSearchResult> nearbyRestaurantsForMenu(double latitude, double longitude,
+                                                                          int radiusMeters, String menu) {
+        String food = menu == null ? "" : menu.replaceFirst("^(매장|배달)\\s*·\\s*", "").strip();
+        if (!food.isBlank()) {
+            List<PlaceSearchResult> matched = searchNominatim(latitude, longitude, radiusMeters, food);
+            if (!matched.isEmpty()) return matched;
+        }
+        return searchNominatim(latitude, longitude, radiusMeters, "[restaurant]");
+    }
+
+    private List<PlaceSearchResult> searchNominatim(double latitude, double longitude,
+                                                    int radiusMeters, String query) {
+        double latSpan = radiusMeters / 111_320.0;
+        double lonSpan = radiusMeters / (111_320.0 * Math.cos(Math.toRadians(latitude)));
+        String viewbox = String.format(Locale.ROOT, "%.6f,%.6f,%.6f,%.6f",
+                longitude - lonSpan, latitude + latSpan,
+                longitude + lonSpan, latitude - latSpan);
+        paceNominatim();
+        JsonNode results = geocoder.get().uri(b -> b.path("/search")
+                        .queryParam("q", query).queryParam("viewbox", viewbox)
+                        .queryParam("bounded", 1).queryParam("format", "jsonv2")
+                        .queryParam("limit", 20).queryParam("countrycodes", "kr").build())
+                .header("Accept-Language", "ko").retrieve().body(JsonNode.class);
+        if (results == null || !results.isArray()) return List.of();
+        List<PlaceSearchResult> found = new ArrayList<>();
+        for (JsonNode result : results) {
+            String type = result.path("type").asText();
+            if (!"amenity".equals(result.path("category").asText())
+                    || !("restaurant".equals(type) || "fast_food".equals(type)
+                    || "food_court".equals(type))) continue;
+            double lat = result.path("lat").asDouble();
+            double lon = result.path("lon").asDouble();
+            int distance = distanceMeters(latitude, longitude, lat, lon);
+            if (distance > radiusMeters) continue;
+            String displayName = result.path("display_name").asText("");
+            String name = result.path("name").asText("").strip();
+            if (name.isBlank()) name = displayName.split(",", 2)[0].strip();
+            if (name.isBlank()) continue;
+            String address = displayName.contains(",") ? displayName.substring(displayName.indexOf(',') + 1).strip() : "";
+            String osmType = result.path("osm_type").asText();
+            String osmId = result.path("osm_id").asText();
+            found.add(new PlaceSearchResult("osm-" + osmType + "-" + osmId, name, address,
+                    type, "", "https://www.openstreetmap.org/" + osmType + "/" + osmId,
+                    lat, lon, distance));
+        }
+        return found.stream().sorted(Comparator.comparingInt(PlaceSearchResult::distanceMeters)).toList();
+    }
+
+    private void paceNominatim() {
+        long remaining = 1_000_000_000L - (System.nanoTime() - lastNominatimAt);
+        if (lastNominatimAt != 0 && remaining > 0) {
+            try {
+                Thread.sleep(remaining / 1_000_000L + 1);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("지도 검색이 중단됐어요.", e);
+            }
+        }
+        lastNominatimAt = System.nanoTime();
     }
 
     @Override

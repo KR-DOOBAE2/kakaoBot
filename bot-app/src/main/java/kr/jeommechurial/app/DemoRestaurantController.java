@@ -44,8 +44,8 @@ public class DemoRestaurantController {
 
     private Recommendation find(Query query) {
         RestaurantSearch.Location location = search.geocode(query.address());
-        List<PlaceSearchResult> nearby = search.nearbyRestaurants(
-                location.latitude(), location.longitude(), RADIUS_METERS);
+        List<PlaceSearchResult> nearby = search.nearbyRestaurantsForMenu(
+                location.latitude(), location.longitude(), RADIUS_METERS, query.menu());
         List<PlaceSearchResult> matching = nearby.stream()
                 .filter(place -> RoundRestaurantService.matches(
                         query.menu(), place.name(), place.category())).toList();

@@ -1,6 +1,9 @@
 package kr.jeommechurial.app;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,13 +16,15 @@ import org.springframework.web.client.RestClient;
 @RestController
 public class NaverLocalSearchController {
     private final RestClient client;
+    private final ObjectMapper mapper;
     private final String keyId;
     private final String key;
 
-    public NaverLocalSearchController(RestClient.Builder builder,
+    public NaverLocalSearchController(RestClient.Builder builder, ObjectMapper mapper,
             @Value("${app.naver-api-key-id:}") String keyId,
             @Value("${app.naver-api-key:}") String key) {
         this.client = builder.baseUrl("https://naverapihub.apigw.ntruss.com").build();
+        this.mapper = mapper;
         this.keyId = keyId;
         this.key = key;
     }
@@ -34,13 +39,19 @@ public class NaverLocalSearchController {
         if (keyId.isBlank() || key.isBlank()) return new Result(false, List.of());
         String area = request.address().replaceAll("\\b\\d+(?:-\\d+)?\\b", "").replaceAll("\\s+", " ").strip();
         String query = area + " " + request.menu().strip();
-        JsonNode response = client.get().uri(uri -> uri.path("/search/v1/local")
+        byte[] body = client.get().uri(uri -> uri.path("/search/v1/local")
                         .queryParam("query", query).queryParam("display", 5)
                         .queryParam("start", 1).queryParam("sort", "random")
                         .queryParam("format", "json").build())
                 .header("X-NCP-APIGW-API-KEY-ID", keyId)
                 .header("X-NCP-APIGW-API-KEY", key)
-                .retrieve().body(JsonNode.class);
+                .retrieve().body(byte[].class);
+        JsonNode response;
+        try {
+            response = mapper.readTree(new String(body, StandardCharsets.UTF_8));
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("네이버 검색 응답을 읽지 못했어요.", e);
+        }
         List<Place> places = new ArrayList<>();
         if (response != null && response.path("items").isArray()) {
             for (JsonNode item : response.path("items")) {

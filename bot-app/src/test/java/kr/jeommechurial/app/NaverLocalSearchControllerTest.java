@@ -1,5 +1,6 @@
 package kr.jeommechurial.app;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
@@ -21,9 +22,9 @@ class NaverLocalSearchControllerTest {
                 .andExpect(header("X-NCP-APIGW-API-KEY-ID", "id"))
                 .andExpect(header("X-NCP-APIGW-API-KEY", "secret"))
                 .andRespond(withSuccess("{\"items\":[{\"title\":\"생선집\",\"category\":\"한식\"},"
-                        + "{\"title\":\"구이집\",\"category\":\"생선구이\"}]}", MediaType.APPLICATION_JSON));
+                        + "{\"title\":\"구이집\",\"category\":\"생선구이\"}]}", MediaType.TEXT_PLAIN));
 
-        var result = new NaverLocalSearchController(builder, "id", "secret")
+        var result = new NaverLocalSearchController(builder, new ObjectMapper(), "id", "secret")
                 .search(new NaverLocalSearchController.Request("서울 강남구", "생선구이"));
 
         assertThat(result.configured()).isTrue();
@@ -34,7 +35,7 @@ class NaverLocalSearchControllerTest {
 
     @Test
     void withoutKeysDoesNotCallProvider() {
-        var result = new NaverLocalSearchController(RestClient.builder(), "", "")
+        var result = new NaverLocalSearchController(RestClient.builder(), new ObjectMapper(), "", "")
                 .search(new NaverLocalSearchController.Request("서울 강남구", "생선구이"));
         assertThat(result.configured()).isFalse();
         assertThat(result.places()).isEmpty();

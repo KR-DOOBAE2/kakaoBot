@@ -29,16 +29,25 @@ class LunchServiceTest {
         assertEquals(Instant.parse("2026-11-16T01:45:00Z"), view.drawAt());
     }
 
-    @Test void participantCanChangeAndCancelOnlyTheirOwnEntry() {
+    @Test void participantCanAddSeveralMenusAndCancelThemIndividually() {
         CreatedRound r = service.create("점심", "우리방");
         UUID a = UUID.randomUUID(), b = UUID.randomUUID();
         service.register(r.id(), r.joinToken(), a, "A", "국밥");
         service.register(r.id(), r.joinToken(), a, "A", "냉면");
+        service.register(r.id(), r.joinToken(), a, "A", "국밥");
         service.register(r.id(), r.joinToken(), b, "B", "국밥");
-        service.cancel(r.id(), r.joinToken(), a);
+        RoundView before = service.get(r.id(), r.joinToken());
+        assertEquals(3, before.entries().size());
+        assertEquals(2, before.candidates().size());
+        UUID aEntry = before.entries().stream().filter(e -> e.participantId().equals(a) && e.menu().equals("국밥")).findFirst().orElseThrow().id();
+        service.cancel(r.id(), r.joinToken(), b, aEntry);
+        assertEquals(3, service.get(r.id(), r.joinToken()).entries().size());
+        service.cancel(r.id(), r.joinToken(), a, aEntry);
         RoundView view = service.get(r.id(), r.joinToken());
-        assertEquals(1, view.entries().size());
-        assertEquals("국밥", view.entries().getFirst().menu());
+        assertEquals(2, view.entries().size());
+        assertEquals(2, view.candidates().size());
+        service.cancel(r.id(), r.joinToken(), a);
+        assertEquals("국밥", service.get(r.id(), r.joinToken()).entries().getFirst().menu());
     }
 
     @Test void drawAtCutoffIsStableAndRejectsLateEntries() {
@@ -109,12 +118,15 @@ class LunchServiceTest {
         public Optional<LunchRound> find(UUID id) { return Optional.ofNullable(rounds.get(id)); }
         public List<LunchRound> findDueOpen(Instant now) { return rounds.values().stream().filter(r -> r.status() == RoundStatus.OPEN && r.drawAt() != null && !r.drawAt().isAfter(now)).toList(); }
         public List<MenuEntry> entries(UUID id) { return List.copyOf(entries.get(id)); }
-        public MenuEntry upsertEntry(UUID rid, UUID pid, String name, String menu) {
-            List<MenuEntry> list = entries.get(rid); list.removeIf(e -> e.participantId().equals(pid));
+        public MenuEntry addEntry(UUID rid, UUID pid, String name, String menu) {
+            List<MenuEntry> list = entries.get(rid);
+            Optional<MenuEntry> existing = list.stream().filter(e -> e.participantId().equals(pid) && e.menu().equalsIgnoreCase(menu)).findFirst();
+            if (existing.isPresent()) return existing.get();
             MenuEntry entry = new MenuEntry(UUID.randomUUID(), rid, pid, name, menu, Instant.now(), Instant.now());
             list.add(entry); return entry;
         }
         public void deleteEntry(UUID rid, UUID pid) { entries.get(rid).removeIf(e -> e.participantId().equals(pid)); }
+        public void deleteEntry(UUID rid, UUID pid, UUID entryId) { entries.get(rid).removeIf(e -> e.participantId().equals(pid) && e.id().equals(entryId)); }
         public List<String> candidates(UUID id) { return entries.get(id).stream().map(e -> e.menu().strip()).distinct().toList(); }
         public boolean draw(UUID id, String winner, long version, boolean reroll) {
             LunchRound r = rounds.get(id);
@@ -143,4 +155,3 @@ class LunchServiceTest {
         }
     }
 }
-

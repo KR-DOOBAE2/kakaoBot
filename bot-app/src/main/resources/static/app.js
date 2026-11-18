@@ -80,7 +80,23 @@ function showRound(data) {
   $('#schedule').textContent = data.drawAt ? `${drawTime(data)} 공개 · 공개 직전까지 익명 메뉴 입력` : '이전 방식의 방 · 새 점심방을 만들어주세요';
   $('#count').textContent = `${data.candidates.length}개 메뉴 후보`;
   const accepting = data.status === 'OPEN' && data.drawAt && Date.now() < new Date(data.drawAt).getTime();
-  $('#menuForm').classList.toggle('hidden', !accepting); $('#cancelBtn').classList.toggle('hidden', !accepting);
+  const mine = data.entries.filter(entry => entry.mine);
+  $('#myMenus').replaceChildren();
+  for (const entry of mine) {
+    const row = document.createElement('div'); row.className = 'my-menu';
+    const name = document.createElement('span'); name.textContent = `🥚 ${entry.menu}`;
+    row.append(name);
+    if (accepting) {
+      const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = '취소';
+      remove.onclick = async () => {
+        try { showRound(await api(`/api/rounds/${roundId}/entries/${encodeURIComponent(entry.id)}?token=${encodeURIComponent(joinToken)}`, { method: 'DELETE', headers: { 'X-Participant-Id': participantId() } })); toast('메뉴 하나를 취소했어요.'); }
+        catch (error) { toast(error.message); }
+      };
+      row.append(remove);
+    }
+    $('#myMenus').append(row);
+  }
+  $('#menuForm').classList.toggle('hidden', !accepting); $('#cancelBtn').classList.toggle('hidden', !accepting || !mine.length);
   updateCountdown();
   $('#illustratedMenus').classList.toggle('hidden', data.candidates.length === 0);
   if (data.candidates.length) renderIllustrations(data);
@@ -163,16 +179,18 @@ $('#createBtn').onclick = async () => {
     toast('방이 만들어졌어요! 링크를 단톡방에 공유해보세요 🥚');
   } catch (error) { toast(error.message); }
 };
+mountAddressPicker($('#officeAddress'));
+mountAddressPicker($('#settingsAddress'));
 $('#menuForm').onsubmit = async event => {
   event.preventDefault();
   try {
     const category = $('#menu').value.trim();
     if (!category) throw Error('먹고 싶은 음식 카테고리를 입력해주세요.');
     const data = await api(`/api/rounds/${roundId}/entries?token=${encodeURIComponent(joinToken)}`, { method: 'PUT', headers: { 'X-Participant-Id': participantId() }, body: JSON.stringify({ menu: `${diningMode} · ${category}` }) });
-    showRound(data); $('#menu').value = ''; toast(`${diningMode} · ${category} 선택을 익명으로 저장했어요!`);
+    showRound(data); $('#menu').value = ''; toast(`${diningMode} · ${category} 메뉴를 익명으로 추가했어요!`);
   } catch (error) { toast(error.message); }
 };
-$('#cancelBtn').onclick = async () => { try { showRound(await api(`/api/rounds/${roundId}/entries/me?token=${encodeURIComponent(joinToken)}`, { method: 'DELETE', headers: { 'X-Participant-Id': participantId() } })); toast('내 메뉴를 취소했어요.'); } catch (error) { toast(error.message); } };
+$('#cancelBtn').onclick = async () => { try { showRound(await api(`/api/rounds/${roundId}/entries/me?token=${encodeURIComponent(joinToken)}`, { method: 'DELETE', headers: { 'X-Participant-Id': participantId() } })); toast('내 메뉴를 모두 취소했어요.'); } catch (error) { toast(error.message); } };
 $('#spinBtn').onclick = async () => { try { await refresh(); if (roundData.winner) { revealed = false; animate(roundData); } else toast('결과를 준비 중이에요. 잠시 후 다시 눌러주세요.'); } catch (error) { toast(error.message); } };
 $('#shareBtn').onclick = async () => { const url = shareUrl || location.href; const text = `🥚 점메추리알에서 익명으로 오늘 점심 메뉴를 골라요!\n10시 44분까지 메뉴 입력 · 10시 45분 룰렛 결과\n${url}`; if (navigator.share) { try { await navigator.share({ title: '점메추리알 🥚', text, url }); } catch {} } else { try { await navigator.clipboard.writeText(text); toast('초대 링크를 복사했어요. 카카오톡 방에 붙여넣어주세요!'); } catch { toast(url); } } };
 document.querySelectorAll('[data-mode]').forEach(button => button.onclick = () => {

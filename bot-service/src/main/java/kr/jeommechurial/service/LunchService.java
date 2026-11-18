@@ -39,8 +39,9 @@ public class LunchService {
         return new CreatedRound(r.id(),owner,r.title(),r.roomName(),join,ownerToken(r.id()));
     }
     @Transactional public RoundView start(UUID id,String token){requireOwner(id,token);drawIfDue(id);return view(id);}
-    @Transactional public RoundView register(UUID id,String token,UUID participantId,String name,String menu){validateJoin(id,token);rolloverIfNeeded(id);requireOpen(id);repository.upsertEntry(id,participantId,"익명",clean(menu,80));return view(id);}
+    @Transactional public RoundView register(UUID id,String token,UUID participantId,String name,String menu){validateJoin(id,token);rolloverIfNeeded(id);requireOpen(id);String cleaned=clean(menu,80);List<MenuEntry> mine=repository.entries(id).stream().filter(e->e.participantId().equals(participantId)).toList();if(mine.stream().noneMatch(e->e.menu().equalsIgnoreCase(cleaned))&&mine.size()>=20)throw new IllegalArgumentException("한 사람은 메뉴를 최대 20개까지 등록할 수 있어요.");repository.addEntry(id,participantId,"익명",cleaned);return view(id);}
     @Transactional public RoundView cancel(UUID id,String token,UUID participantId){validateJoin(id,token);rolloverIfNeeded(id);requireOpen(id);repository.deleteEntry(id,participantId);return view(id);}
+    @Transactional public RoundView cancel(UUID id,String token,UUID participantId,UUID entryId){validateJoin(id,token);rolloverIfNeeded(id);requireOpen(id);repository.deleteEntry(id,participantId,entryId);return view(id);}
     @Transactional public RoundView get(UUID id,String token){validateJoin(id,token);rolloverIfNeeded(id);drawIfDue(id);return view(id);}
     @Transactional public RoundView updateSettings(UUID id,String ownerToken,String address,LocalTime start,LocalTime end){
         LunchRound round=requireOwner(id,ownerToken);
@@ -66,4 +67,3 @@ public class LunchService {
     private static String hash(String s){try{return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(s.getBytes(StandardCharsets.UTF_8)));}catch(Exception e){throw new IllegalStateException(e);}}
     private static String clean(String s,int n){if(s==null||s.isBlank())throw new IllegalArgumentException("필수 입력을 확인해주세요.");s=s.strip();if(s.length()>n)throw new IllegalArgumentException("입력이 너무 길어요.");return s;}
 }
-

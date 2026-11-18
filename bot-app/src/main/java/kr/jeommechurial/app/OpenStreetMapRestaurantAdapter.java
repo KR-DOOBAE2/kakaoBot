@@ -17,12 +17,13 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Component
 @ConditionalOnProperty(name = "app.place-provider", havingValue = "osm", matchIfMissing = true)
-public class OpenStreetMapRestaurantAdapter implements RestaurantSearch {
+public class OpenStreetMapRestaurantAdapter implements RestaurantSearch, AddressLookup {
     private static final String USER_AGENT = "Jeommechurial/0.1 (https://kakaobot-nkrp.onrender.com)";
     private static final long EARTH_RADIUS_METERS = 6_371_000;
     private final RestClient geocoder;
     private final RestClient places;
     private final Map<String, Location> geocodeCache = new ConcurrentHashMap<>();
+    private final Map<String, List<AddressResult>> addressCache = new ConcurrentHashMap<>();
     private long lastNominatimAt;
 
     public OpenStreetMapRestaurantAdapter(RestClient.Builder builder,
@@ -48,6 +49,30 @@ public class OpenStreetMapRestaurantAdapter implements RestaurantSearch {
                 results.get(0).path("lon").asDouble());
         geocodeCache.put(query, location);
         return location;
+    }
+
+    @Override
+    public synchronized List<AddressResult> searchAddresses(String query) {
+        String key = query.strip();
+        List<AddressResult> cached = addressCache.get(key);
+        if (cached != null) return cached;
+        paceNominatim();
+        JsonNode results = geocoder.get().uri(b -> b.path("/search").queryParam("q", key)
+                        .queryParam("format", "jsonv2").queryParam("limit", 5)
+                        .queryParam("countrycodes", "kr").build())
+                .header("Accept-Language", "ko").retrieve().body(JsonNode.class);
+        List<AddressResult> found = new ArrayList<>();
+        if (results != null && results.isArray()) for (JsonNode item : results) {
+            String display = item.path("display_name").asText("").strip();
+            if (display.isBlank() || display.length() > 160) continue;
+            double latitude = item.path("lat").asDouble();
+            double longitude = item.path("lon").asDouble();
+            found.add(new AddressResult(display, latitude, longitude));
+            geocodeCache.put(display, new Location(latitude, longitude));
+        }
+        List<AddressResult> answer = List.copyOf(found);
+        addressCache.put(key, answer);
+        return answer;
     }
 
     @Override

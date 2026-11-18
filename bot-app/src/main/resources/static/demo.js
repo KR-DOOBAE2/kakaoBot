@@ -123,6 +123,7 @@ function settingsForm() {
   const bubble = message('방장님, 회사 주소와 점심 시작·종료 시간을 등록해주세요. 종료 시간은 식사를 마치는 시각이에요. 🏢');
   const form = document.createElement('form'); form.className = 'settings-form';
   form.innerHTML = '<label>회사 주소<input name="address" maxlength="160" placeholder="예: 서울 강남구 테헤란로 123" autocomplete="street-address" required></label><div class="time-row"><label>점심 시작<input name="start" type="time" value="12:00" required></label><label>점심 종료<input name="end" type="time" value="13:00" required></label></div><button type="submit">회사·식사 시간 저장</button><small class="form-error" aria-live="polite"></small>';
+  mountAddressPicker(form.elements.address);
   if (settings) { form.elements.address.value = settings.address; form.elements.start.value = settings.start; form.elements.end.value = settings.end; }
   form.onsubmit = event => {
     event.preventDefault();
@@ -155,7 +156,7 @@ function submit(text) {
   if (input.length > 80) { message('메뉴 이름은 80자 이하로 입력해주세요.'); return; }
   menus.push(input); addArt(message(input, 'anonymous'), input);
   const unique = [...new Map(menus.map(m => [m.toLocaleLowerCase('ko'), m])).values()];
-  message(`익명 메뉴가 등록됐어요! 현재 ${menus.length}명 참여 · ${unique.length}개 메뉴 후보 🍽️`);
+  message(`익명 메뉴가 등록됐어요! 현재 ${menus.length}개 등록 · ${unique.length}개 메뉴 후보 🍽️`);
 }
 function advance() {
   if (phase !== 'collect') return;

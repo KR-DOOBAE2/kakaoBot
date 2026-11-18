@@ -11,12 +11,12 @@ public interface RoundRepository {
     Optional<LunchRound> find(UUID id);
     List<LunchRound> findDueOpen(Instant now);
     List<MenuEntry> entries(UUID roundId);
-    MenuEntry upsertEntry(UUID roundId, UUID participantId, String participantName, String menu);
+    MenuEntry addEntry(UUID roundId, UUID participantId, String participantName, String menu);
     void deleteEntry(UUID roundId, UUID participantId);
+    void deleteEntry(UUID roundId, UUID participantId, UUID entryId);
     List<String> candidates(UUID roundId);
     boolean draw(UUID roundId, String winner, long expectedVersion, boolean reroll);
     boolean close(UUID roundId, long expectedVersion);
     boolean updateSettings(UUID roundId, String officeAddress, LocalTime lunchStartTime, LocalTime lunchEndTime, long expectedVersion);
     boolean resetForNewDay(UUID roundId, Instant nextDrawAt, long expectedVersion);
 }
-

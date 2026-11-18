@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.UUID;
 
-@Entity @Table(name="menu_entries",uniqueConstraints=@UniqueConstraint(name="uq_round_participant",columnNames={"round_id","participant_id"}))
+@Entity @Table(name="menu_entries")
 public class MenuEntity {
     @Id UUID id;
     @Column(name="round_id",nullable=false) UUID roundId;

@@ -65,6 +65,13 @@ public class RoundRestaurantService {
         return false;
     }
 
+    public static List<String> searchTerms(String menu) {
+        String cleaned = menu.replaceFirst("^(매장|배달)\\s*·\\s*", "").strip();
+        if (cleaned.contains("떡볶이") || cleaned.contains("라볶이"))
+            return List.of(cleaned, "분식");
+        return List.of(cleaned);
+    }
+
     private static String normalize(String value) {
         return Normalizer.normalize(value.toLowerCase(Locale.ROOT), Normalizer.Form.NFKC)
                 .replaceAll("[\\s\\p{Punct}]", "");
@@ -75,6 +82,7 @@ public class RoundRestaurantService {
             "japanese", List.of("일식", "japanese", "초밥", "스시", "라멘", "돈카츠", "돈까스", "우동"),
             "chinese", List.of("중식", "chinese", "짜장", "짬뽕", "마라", "탕수육"),
             "western", List.of("양식", "italian", "western", "파스타", "피자", "스테이크"),
+            "bunsik", List.of("분식", "떡볶이", "라볶이"),
             "fastfood", List.of("패스트푸드", "fastfood", "burger", "햄버거", "샌드위치"));
 
     public record Restaurant(String placeId, String name, String address, String category, String placeUrl,
@@ -82,3 +90,4 @@ public class RoundRestaurantService {
     public record Recommendation(String winningMenu, boolean menuMatched, Restaurant topPick, List<Restaurant> restaurants) {}
     private record CacheKey(UUID roundId, Instant drawAt, String address, String winner) {}
 }
+

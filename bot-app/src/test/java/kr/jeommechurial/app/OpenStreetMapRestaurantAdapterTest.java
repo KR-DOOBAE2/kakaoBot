@@ -2,11 +2,21 @@ package kr.jeommechurial.app;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.springframework.web.client.RestClient;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class OpenStreetMapRestaurantAdapterTest {
     private final ObjectMapper mapper = new ObjectMapper();
+
+    @Test void usesVerifiedBojeonBuildingLocationForRestaurantRadius() {
+        var adapter = new OpenStreetMapRestaurantAdapter(RestClient.builder(),
+                "https://nominatim.openstreetmap.org", "https://overpass-api.de");
+        var location = adapter.geocode("강남구 언주로 725");
+        assertEquals(37.519313338214, location.latitude(), 0.000001);
+        assertEquals(127.03449892281, location.longitude(), 0.000001);
+        assertEquals(location.latitude(), adapter.searchAddresses("서울 강남구 언주로 725").getFirst().latitude());
+    }
 
     @Test void readsNamedRestaurantsAndFiltersPlacesOutsideRadius() throws Exception {
         var response = mapper.readTree("""
@@ -25,3 +35,4 @@ class OpenStreetMapRestaurantAdapterTest {
         assertEquals("https://www.openstreetmap.org/way/2", result.get(1).placeUrl());
     }
 }
+

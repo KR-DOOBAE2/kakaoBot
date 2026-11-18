@@ -15,6 +15,12 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
 
 class RoundRestaurantServiceTest {
+    @Test void tteokbokkiMatchesBunsikPlacesAndSearchesBothNames() {
+        assertTrue(RoundRestaurantService.matches("매장 · 떡볶이", "무명떡볶이", "restaurant"));
+        assertTrue(RoundRestaurantService.matches("떡볶이", "우리동네분식", "fast_food"));
+        assertFalse(RoundRestaurantService.matches("떡볶이", "초밥집", "japanese"));
+        assertEquals(List.of("떡볶이", "분식"), RoundRestaurantService.searchTerms("매장 · 떡볶이"));
+    }
     @Test void requiresDrawAndValidParticipationLink() {
         var rounds = new LunchServiceTest.FakeRepository();
         var lunch = new LunchService(rounds, "secret", Clock.fixed(Instant.parse("2026-11-16T01:00:00Z"), ZoneOffset.UTC));

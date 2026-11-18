@@ -3,6 +3,7 @@ package kr.jeommechurial.app;
 import com.fasterxml.jackson.databind.JsonNode;
 import kr.jeommechurial.core.PlaceSearchResult;
 import kr.jeommechurial.service.RestaurantSearch;
+import kr.jeommechurial.service.RoundRestaurantService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -12,6 +13,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -25,6 +27,9 @@ public class OpenStreetMapRestaurantAdapter implements RestaurantSearch, Address
     private final Map<String, Location> geocodeCache = new ConcurrentHashMap<>();
     private final Map<String, List<AddressResult>> addressCache = new ConcurrentHashMap<>();
     private final Map<String, List<PlaceSearchResult>> restaurantCache = new ConcurrentHashMap<>();
+    // Verified address point; Nominatim otherwise resolves this street number to a distant road segment.
+    // https://jusoga.com/b/1168010800100700013005398/
+    private static final Location BOJEON_BUILDING = new Location(37.519313338214, 127.03449892281);
     private long lastNominatimAt;
 
     public OpenStreetMapRestaurantAdapter(RestClient.Builder builder,
@@ -37,6 +42,7 @@ public class OpenStreetMapRestaurantAdapter implements RestaurantSearch, Address
     @Override
     public synchronized Location geocode(String address) {
         String query = address.strip();
+        if (isBojeonBuildingAddress(query)) return BOJEON_BUILDING;
         Location cached = geocodeCache.get(query);
         if (cached != null) return cached;
         paceNominatim();
@@ -55,6 +61,9 @@ public class OpenStreetMapRestaurantAdapter implements RestaurantSearch, Address
     @Override
     public synchronized List<AddressResult> searchAddresses(String query) {
         String key = query.strip();
+        if (isBojeonBuildingAddress(key))
+            return List.of(new AddressResult("서울 강남구 언주로 725 (보전빌딩)",
+                    BOJEON_BUILDING.latitude(), BOJEON_BUILDING.longitude()));
         List<AddressResult> cached = addressCache.get(key);
         if (cached != null) return cached;
         paceNominatim();
@@ -80,17 +89,44 @@ public class OpenStreetMapRestaurantAdapter implements RestaurantSearch, Address
     public synchronized List<PlaceSearchResult> nearbyRestaurantsForMenu(double latitude, double longitude,
                                                                           int radiusMeters, String menu) {
         String food = menu == null ? "" : menu.replaceFirst("^(매장|배달)\\s*·\\s*", "").strip();
-        if (!food.isBlank()) {
-            List<PlaceSearchResult> matched = searchNominatim(latitude, longitude, radiusMeters, food);
-            if (!matched.isEmpty()) return matched;
+        List<PlaceSearchResult> nearby;
+        try {
+            nearby = nearbyRestaurants(latitude, longitude, radiusMeters);
+        } catch (RuntimeException unavailable) {
+            nearby = List.of();
         }
-        return searchNominatim(latitude, longitude, radiusMeters, "[restaurant]");
+        if (food.isBlank()) return nearby;
+        LinkedHashMap<String, PlaceSearchResult> matches = new LinkedHashMap<>();
+        for (PlaceSearchResult place : nearby)
+            if (RoundRestaurantService.matches(food, place.name(), place.category()))
+                matches.put(place.placeId(), place);
+        for (String term : RoundRestaurantService.searchTerms(food)) {
+            try {
+                for (PlaceSearchResult place : searchNominatim(latitude, longitude, radiusMeters, term))
+                    if (RoundRestaurantService.matches(food, place.name(), place.category()))
+                        matches.putIfAbsent(place.placeId(), place);
+            } catch (RuntimeException unavailable) {
+                if (nearby.isEmpty() && matches.isEmpty()) throw unavailable;
+            }
+        }
+        if (!matches.isEmpty()) return matches.values().stream()
+                .sorted(Comparator.comparingInt(PlaceSearchResult::distanceMeters)).toList();
+        return nearby.isEmpty() ? searchNominatim(latitude, longitude, radiusMeters, "[restaurant]") : nearby;
     }
 
     @Override
     public synchronized List<PlaceSearchResult> nearbyRestaurantsMatchingMenu(double latitude, double longitude,
                                                                                int radiusMeters, String menu) {
-        return searchNominatim(latitude, longitude, radiusMeters, menu.strip());
+        LinkedHashMap<String, PlaceSearchResult> matches = new LinkedHashMap<>();
+        for (String term : RoundRestaurantService.searchTerms(menu))
+            for (PlaceSearchResult place : searchNominatim(latitude, longitude, radiusMeters, term))
+                if (RoundRestaurantService.matches(menu, place.name(), place.category()))
+                    matches.putIfAbsent(place.placeId(), place);
+        return matches.values().stream().sorted(Comparator.comparingInt(PlaceSearchResult::distanceMeters)).toList();
+    }
+
+    private static boolean isBojeonBuildingAddress(String address) {
+        return address.strip().matches("^(?:서울(?:특별시)?\\s+)?강남구\\s+언주로\\s+725(?:\\s+.*)?$");
     }
 
     private List<PlaceSearchResult> searchNominatim(double latitude, double longitude,
@@ -198,3 +234,4 @@ public class OpenStreetMapRestaurantAdapter implements RestaurantSearch, Address
         return (int) Math.round(2 * EARTH_RADIUS_METERS * Math.asin(Math.sqrt(a)));
     }
 }
+

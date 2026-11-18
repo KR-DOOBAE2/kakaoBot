@@ -93,6 +93,7 @@ async function recommendRestaurants(bubble = message('📍 회사 주변 식당�
     attribution.target = '_blank'; attribution.rel = 'noopener noreferrer';
     attribution.textContent = '© OpenStreetMap contributors'; credit.append(attribution);
     bubble.append(credit);
+    await showNaverPlaces(bubble, generation);
     messages.scrollTop = messages.scrollHeight;
   } catch (error) {
     if (generation !== recommendationGeneration) return;
@@ -100,6 +101,49 @@ async function recommendRestaurants(bubble = message('📍 회사 주변 식당�
     const retry = document.createElement('button'); retry.textContent = '식당 다시 찾기';
     retry.onclick = () => recommendRestaurants(bubble); bubble.append(retry);
   }
+}
+async function showNaverPlaces(bubble, generation) {
+  const query = `${settings.address} ${winner}`;
+  const mapLink = document.createElement('a');
+  mapLink.href = `https://map.naver.com/p/search/${encodeURIComponent(query)}`;
+  mapLink.target = '_blank'; mapLink.rel = 'noopener noreferrer';
+  mapLink.textContent = '네이버 지도에서 직접 보기 ↗';
+  try {
+    const response = await fetch('/api/naver/local-search', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ address: settings.address, menu: winner })
+    });
+    if (!response.ok) throw new Error('네이버 검색에 실패했어요.');
+    const result = await response.json();
+    if (generation !== recommendationGeneration) return;
+    const heading = document.createElement('strong');
+    heading.textContent = result.configured
+      ? `🔎 네이버 지역 검색 결과 ${result.places.length}곳`
+      : '🔎 네이버 지도 검색';
+    bubble.append(heading);
+    if (result.configured) {
+      for (const place of result.places) {
+        const row = document.createElement('div'); row.className = 'demo-restaurant';
+        const name = document.createElement('strong');
+        name.textContent = place.title.replace(/<\/?b>/gi, '');
+        const detail = document.createElement('small');
+        detail.textContent = `${place.category} · ${place.roadAddress || place.address}`;
+        row.append(name, detail);
+        if (/^https:\/\//i.test(place.link)) {
+          const link = document.createElement('a'); link.href = place.link;
+          link.target = '_blank'; link.rel = 'noopener noreferrer';
+          link.textContent = '업체 정보 ↗'; row.append(link);
+        }
+        bubble.append(row);
+      }
+      const note = document.createElement('small'); note.className = 'demo-restaurant-credit';
+      note.textContent = '자료: NAVER API HUB · 네이버 제공 순서 · 반경 1km 보장 없음';
+      bubble.append(note);
+    }
+  } catch (_) {
+    if (generation !== recommendationGeneration) return;
+  }
+  bubble.append(mapLink);
 }
 function message(text, kind = 'bot', action = false) {
   const row = document.createElement('div'); row.className = `message ${kind}`;

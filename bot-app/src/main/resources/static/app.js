@@ -205,8 +205,58 @@ async function loadRestaurants() {
     $('#restaurantStatus').textContent = error.message;
     $('#restaurantRetry').classList.remove('hidden');
   } finally { restaurantLoading = false; }
+  await showNaverResults();
 }
 $('#restaurantRetry').onclick = loadRestaurants;
+async function showNaverResults() {
+  const address = roundData?.officeAddress, menu = roundData?.winner;
+  if (!address || !menu) return;
+  const card = $('#restaurantCard');
+  let section = $('#naverPlaces');
+  if (!section) {
+    section = document.createElement('div'); section.id = 'naverPlaces';
+    card.append(section);
+  }
+  const cleanMenu = menu.replace(/^(매장|배달)\s*·\s*/, '');
+  const query = `${address} ${cleanMenu}`;
+  section.replaceChildren();
+  const heading = document.createElement('h3'); heading.textContent = '🔎 네이버 지역 검색';
+  section.append(heading);
+  try {
+    const result = await api('/api/naver/local-search', {
+      method: 'POST', body: JSON.stringify({ address, menu: cleanMenu })
+    });
+    if (roundData?.winner !== menu || roundData?.officeAddress !== address) return;
+    if (result.configured) {
+      for (const place of result.places) {
+        const row = document.createElement('div'); row.className = 'restaurant';
+        const main = document.createElement('div'); main.className = 'restaurant-main';
+        const name = document.createElement('strong'); name.textContent = place.title.replace(/<\/?b>/gi, '');
+        const detail = document.createElement('p'); detail.textContent = `${place.category} · ${place.roadAddress || place.address}`;
+        main.append(name, detail);
+        if (/^https:\/\//i.test(place.link)) {
+          const link = document.createElement('a'); link.href = place.link;
+          link.target = '_blank'; link.rel = 'noopener noreferrer'; link.textContent = '업체 정보 ↗';
+          main.append(link);
+        }
+        row.append(main); section.append(row);
+      }
+      if (!result.places.length) {
+        const empty = document.createElement('p'); empty.textContent = '네이버에서도 검색 결과가 없어요.';
+        section.append(empty);
+      }
+      const note = document.createElement('small');
+      note.textContent = '자료: NAVER API HUB · 네이버 제공 순서 · 반경 1km 보장 없음';
+      section.append(note);
+    }
+  } catch (_) {
+    const error = document.createElement('p'); error.textContent = '네이버 검색을 완료하지 못했어요.';
+    section.append(error);
+  }
+  const link = document.createElement('a'); link.href = `https://map.naver.com/p/search/${encodeURIComponent(query)}`;
+  link.target = '_blank'; link.rel = 'noopener noreferrer'; link.textContent = '네이버 지도에서 직접 보기 ↗';
+  section.append(link);
+}
 function animate(data) {
   if (spinning || !data.winner) return;
   spinning = true; revealed = false; renderIllustrations(data); $('#winner').classList.remove('hidden'); $('#winner').classList.add('spinning');

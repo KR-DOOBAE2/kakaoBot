@@ -28,6 +28,8 @@ app:
   kakao-skill-secret: ${KAKAO_SKILL_SECRET:}
   public-base-url: ${PUBLIC_BASE_URL:}
   kakao-rest-api-key: ${KAKAO_REST_API_KEY:}
+  naver-api-key-id: ${NAVER_API_KEY_ID:}
+  naver-api-key: ${NAVER_API_KEY:}
   kakao-bot-id: ${KAKAO_BOT_ID:}
   kakao-lunch-event-name: ${KAKAO_LUNCH_EVENT_NAME:lunch_recommendation}
   lunch-scheduler-delay-ms: ${LUNCH_SCHEDULER_DELAY_MS:60000}

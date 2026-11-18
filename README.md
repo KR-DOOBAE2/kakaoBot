@@ -140,6 +140,12 @@ Render 무료 웹 서비스는 유휴 시 중지될 수 있고 무료 PostgreSQL
 점심시간 자동 푸시는 별도 선택 기능입니다. `KAKAO_BOT_ID`와 관리자센터 이벤트 이름(`KAKAO_LUNCH_EVENT_NAME`, 기본값 `lunch_recommendation`)을 설정하고, 챗봇 관리자센터의 이벤트 블록에서 같은 이름을 등록해야 합니다. 메시지 템플릿에서 `{{#current.event.data.restaurantName}}`, `address`, `distance`, `placeUrl` 값을 표시하도록 구성하세요. 사용자는 `알림켜기`로 등록해야 하며 채널 친구여야 받을 수 있습니다. 카카오 Event API는 비즈 인증 채널과 비즈 앱 연결 등 별도 선행 조건이 있습니다. [Event API 설정·발송 조건](https://kakaobusiness.gitbook.io/main/tool/chatbot/main_notions/event-api).
 ## 환경 변수
 
+### 네이버 지역 검색 (선택)
+
+당첨 메뉴가 정해지면 네이버 지역 검색 API를 호출해 검색 결과를 별도 영역에 표시합니다. [NAVER Cloud Platform의 NAVER API HUB 지역 검색](https://api.ncloud-docs.com/docs/naver-api-hub-search-local)을 신청하고 애플리케이션에서 지역 검색 API를 선택한 뒤 Render 환경 변수에 `NAVER_API_KEY_ID`와 `NAVER_API_KEY`를 등록하세요. 키를 채팅이나 GitHub에 올리지 마세요. 키가 없으면 네이버 지도 검색 링크만 표시됩니다.
+
+이 API는 검색어당 최대 5개 결과만 제공하며 반경 검색 기능이 없습니다. 따라서 네이버 결과는 1km 이내 식당 추천이나 투표 순위로 사용하지 않고, API가 준 순서 그대로 출처와 함께 보여줍니다. 검색 결과를 DB에 저장하지 않습니다. 네이버 지역 검색의 [이용약관](https://xv-ncloud.pstatic.net/images/provision/NAVER_API_%C3%AC%C2%84%C2%9C%C3%AB%C2%B9%C2%84%C3%AC%C2%8A%C2%A4_%C3%ac%C2%9d%C2%b4%C3%ac%C2%9a%C2%a9%C3%ac%C2%95%C2%bd%C3%aa%C2%b4%C2%80_APIHUB_261001_KR_clean_v2_1791769880751.pdf)을 확인하세요.
+
 `.env.example`은 예시 파일이며 PowerShell이 자동으로 읽지 않습니다. OpenStreetMap 검색에는 키가 필요하지 않습니다. 카카오맵을 유료로 활성화한 경우에만 실행할 PowerShell 창에서 아래처럼 입력하세요. 카카오 푸시까지 사용할 때는 `KAKAO_BOT_ID`도 설정해야 합니다.
 
 ```powershell
@@ -149,7 +155,7 @@ $env:KAKAO_BOT_ID="챗봇 관리자센터 Bot ID"
 $env:KAKAO_LUNCH_EVENT_NAME="lunch_recommendation"
 ```
 
-`DATABASE_URL`, `DATABASE_USERNAME`, `DATABASE_PASSWORD`, `OWNER_SECRET`, `KAKAO_SKILL_SECRET`, `PUBLIC_BASE_URL`, `PLACE_PROVIDER` (기본 `osm`), `OSM_GEOCODER_URL`, `OSM_OVERPASS_URL`, 선택적 `KAKAO_REST_API_KEY`, `KAKAO_BOT_ID`, `KAKAO_LUNCH_EVENT_NAME`, `PORT` (기본 8080). 예제는 [.env.example](.env.example)에 있습니다.
+`DATABASE_URL`, `DATABASE_USERNAME`, `DATABASE_PASSWORD`, `OWNER_SECRET`, `KAKAO_SKILL_SECRET`, `PUBLIC_BASE_URL`, `PLACE_PROVIDER` (기본 `osm`), `OSM_GEOCODER_URL`, `OSM_OVERPASS_URL`, 선택적 `NAVER_API_KEY_ID`, `NAVER_API_KEY`, `KAKAO_REST_API_KEY`, `KAKAO_BOT_ID`, `KAKAO_LUNCH_EVENT_NAME`, `PORT` (기본 8080). 예제는 [.env.example](.env.example)에 있습니다.
 
 ## API 요약
 
@@ -184,3 +190,4 @@ Flyway는 시작 시 `V1__initial_schema.sql`을 적용하며 Hibernate는 스�
 `./gradlew test`에는 익명 표시, 중복 후보 제거, 메뉴 변경·취소, 10시 45분 마감과 한 번만 확정되는 결과 테스트가 포함됩니다. 시연 화면은 실제 카카오톡이 아닌 브라우저 가상 대화입니다. 그룹 챗봇 Beta 제휴 승인 전에는 일반 카카오톡 단체방에 봇을 직접 초대할 수 없습니다.
 
 메뉴 제출자의 실명은 요청하지 않으며 기존 저장 이름도 Flyway 마이그레이션에서 익명으로 바뀝니다. 무료 Render 인스턴스가 잠들거나 예약 작업이 지연되면 10시 45분 즉시 처리되지 않을 수 있으며, 그 후 첫 조회 때 결과를 확정합니다.
+

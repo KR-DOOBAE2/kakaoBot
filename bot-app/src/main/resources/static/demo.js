@@ -100,6 +100,7 @@ async function recommendRestaurants(bubble = message('📍 회사 주변 식당�
     bubble.textContent = `식당 검색을 완료하지 못했어요. ${error.message}`;
     const retry = document.createElement('button'); retry.textContent = '식당 다시 찾기';
     retry.onclick = () => recommendRestaurants(bubble); bubble.append(retry);
+    await showNaverPlaces(bubble, generation);
   }
 }
 async function showNaverPlaces(bubble, generation) {

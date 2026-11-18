@@ -10,5 +10,9 @@ public interface RestaurantSearch {
                                                             int radiusMeters, String menu) {
         return nearbyRestaurants(latitude, longitude, radiusMeters);
     }
+    default List<PlaceSearchResult> nearbyRestaurantsMatchingMenu(double latitude, double longitude,
+                                                                  int radiusMeters, String menu) {
+        return nearbyRestaurantsForMenu(latitude, longitude, radiusMeters, menu);
+    }
     record Location(double latitude, double longitude) {}
 }

@@ -24,6 +24,7 @@ public class OpenStreetMapRestaurantAdapter implements RestaurantSearch, Address
     private final RestClient places;
     private final Map<String, Location> geocodeCache = new ConcurrentHashMap<>();
     private final Map<String, List<AddressResult>> addressCache = new ConcurrentHashMap<>();
+    private final Map<String, List<PlaceSearchResult>> restaurantCache = new ConcurrentHashMap<>();
     private long lastNominatimAt;
 
     public OpenStreetMapRestaurantAdapter(RestClient.Builder builder,
@@ -86,8 +87,17 @@ public class OpenStreetMapRestaurantAdapter implements RestaurantSearch, Address
         return searchNominatim(latitude, longitude, radiusMeters, "[restaurant]");
     }
 
+    @Override
+    public synchronized List<PlaceSearchResult> nearbyRestaurantsMatchingMenu(double latitude, double longitude,
+                                                                               int radiusMeters, String menu) {
+        return searchNominatim(latitude, longitude, radiusMeters, menu.strip());
+    }
+
     private List<PlaceSearchResult> searchNominatim(double latitude, double longitude,
                                                     int radiusMeters, String query) {
+        String key = latitude + "/" + longitude + "/" + radiusMeters + "/" + query;
+        List<PlaceSearchResult> cached = restaurantCache.get(key);
+        if (cached != null) return cached;
         double latSpan = radiusMeters / 111_320.0;
         double lonSpan = radiusMeters / (111_320.0 * Math.cos(Math.toRadians(latitude)));
         String viewbox = String.format(Locale.ROOT, "%.6f,%.6f,%.6f,%.6f",
@@ -121,7 +131,10 @@ public class OpenStreetMapRestaurantAdapter implements RestaurantSearch, Address
                     type, "", "https://www.openstreetmap.org/" + osmType + "/" + osmId,
                     lat, lon, distance));
         }
-        return found.stream().sorted(Comparator.comparingInt(PlaceSearchResult::distanceMeters)).toList();
+        List<PlaceSearchResult> answer = found.stream().sorted(Comparator.comparingInt(PlaceSearchResult::distanceMeters)).toList();
+        if (restaurantCache.size() >= 500) restaurantCache.clear();
+        restaurantCache.put(key, answer);
+        return answer;
     }
 
     private void paceNominatim() {

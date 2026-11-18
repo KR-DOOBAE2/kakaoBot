@@ -3,6 +3,7 @@ let roundId, joinToken, shareUrl, roundData, ownerToken, diningMode = '매장', 
 let restaurantLoading = false, restaurantLoaded = false;
 let weatherLoading = false, weatherAddress = null, weatherCheckedAt = 0;
 let foodCatalog = [];
+let suggestionKey = null, suggestionCheckedAt = 0;
 const emojis = ['🍜', '🍚', '🥟', '🍛', '🍣', '🍲', '🥗', '🍔'];
 const characters = [
   { id: 'chiikawa', name: '치이카와', plateY: 65, happyPlateY: 58 },
@@ -98,8 +99,12 @@ function showRound(data) {
   }
   $('#menuForm').classList.toggle('hidden', !accepting); $('#cancelBtn').classList.toggle('hidden', !accepting || !mine.length);
   updateCountdown();
-  $('#illustratedMenus').classList.toggle('hidden', data.candidates.length === 0);
+  $('#illustratedMenus').classList.remove('hidden');
+  $('#candidateLabel').classList.toggle('hidden', data.candidates.length === 0);
   if (data.candidates.length) renderIllustrations(data);
+  else $('#menuIllustrations').replaceChildren();
+  document.querySelectorAll('.suggestion-add').forEach(button => button.disabled = !accepting);
+  loadSuggestions();
   if (data.winner && !revealed && !spinning) animate(data);
   $('#restaurantCard').classList.toggle('hidden', !data.winner);
   if (data.winner && !restaurantLoaded && !restaurantLoading) loadRestaurants();
@@ -111,10 +116,54 @@ function renderIllustrations(data) {
     const catalogFood = catalogFoodFor(menu), c = catalogFood ? characters.find(item => item.id === catalogFood.characterId) : characterFor(menu, data.drawAt);
     const won = menu === data.winner && revealed;
     const art = catalogFood
-      ? `<img src="${escapeHtml(catalogFood.imagePath)}" alt="${c.name}가 ${escapeHtml(menu)} 음식을 접시에 들고 있어요" loading="lazy">`
-      : `<img src="/characters/${c.id}${won ? '-happy' : ''}.png" alt="${c.name}가 ${escapeHtml(menu)} 음식을 들고 있어요" loading="lazy"><span class="plate-food" aria-hidden="true"><span>${foodFor(menu)}</span></span>`;
-    return `<div class="menu-illustration ${won ? 'is-winner' : ''}"><div class="character-art" style="--plate-y:${won ? c.happyPlateY : c.plateY}%">${art}</div><strong>${escapeHtml(menu)}</strong><small>${c.name}${won ? ' · 당첨! 🎉' : ''}</small></div>`;
+      ? `<img src="${escapeHtml(catalogFood.imagePath)}" alt="${escapeHtml(menu)} 음식 그림" loading="lazy">`
+      : `<img src="/characters/${c.id}${won ? '-happy' : ''}.png" alt="${escapeHtml(menu)} 음식을 들고 있는 그림" loading="lazy"><span class="plate-food" aria-hidden="true"><span>${foodFor(menu)}</span></span>`;
+    return `<div class="menu-illustration ${won ? 'is-winner' : ''}"><div class="character-art" style="--plate-y:${won ? c.happyPlateY : c.plateY}%">${art}</div><strong>${escapeHtml(menu)}</strong>${won ? '<small>당첨! 🎉</small>' : ''}</div>`;
   }).join('');
+}
+async function loadSuggestions() {
+  if (!roundId || !joinToken || !roundData) return;
+  const mode = diningMode === '매장' ? 'store' : 'delivery';
+  const key = `${roundId}|${roundData.officeAddress}|${roundData.drawAt}|${mode}`;
+  if (key === suggestionKey && Date.now() - suggestionCheckedAt < 30 * 60 * 1000) return;
+  suggestionKey = key; suggestionCheckedAt = Date.now();
+  $('#suggestionLabel').textContent = mode === 'store' ? '날씨와 회사 주변 1km 식당을 확인 중이에요…' : '날씨에 맞는 배달 메뉴를 고르고 있어요…';
+  $('#suggestedMenus').replaceChildren();
+  try {
+    const result = await api(`/api/rounds/${roundId}/menu-suggestions?token=${encodeURIComponent(joinToken)}&mode=${mode}`);
+    if (key !== suggestionKey) return;
+    const weather = { sunny: '맑은 날', cloudy: '흐린 날', rain: '비 오는 날', snow: '눈 오는 날' }[result.weatherTheme] || '오늘';
+    $('#suggestionLabel').textContent = `${result.weatherAvailable ? weather : '날씨 정보가 없어 기본 추천으로'} · ${mode === 'store' ? '1km 안에서 매장이 확인된' : '배달용'} 메뉴 ${result.suggestions.length}가지`;
+    for (const suggestion of result.suggestions) {
+      const card = document.createElement('div'); card.className = 'menu-illustration suggestion-card';
+      if (/^\/food-art\/[a-z0-9-]+\.png$/.test(suggestion.imagePath)) {
+        const image = document.createElement('img'); image.src = suggestion.imagePath;
+        image.alt = `${suggestion.name} 음식 그림`; image.loading = 'lazy'; card.append(image);
+      }
+      const name = document.createElement('strong'); name.textContent = suggestion.name; card.append(name);
+      if (suggestion.nearbyPlace) {
+        const place = document.createElement('small');
+        place.textContent = `📍 ${suggestion.nearbyPlace.name} · ${suggestion.nearbyPlace.distanceMeters}m`;
+        card.append(place);
+        if (/^https:\/\//.test(suggestion.nearbyPlace.placeUrl || '')) {
+          const link = document.createElement('a'); link.href = suggestion.nearbyPlace.placeUrl;
+          link.target = '_blank'; link.rel = 'noopener noreferrer'; link.textContent = '지도 보기 ↗'; card.append(link);
+        }
+      }
+      const add = document.createElement('button'); add.type = 'button'; add.className = 'suggestion-add';
+      add.textContent = '이 메뉴 등록';
+      add.disabled = roundData.status !== 'OPEN' || Date.now() >= new Date(roundData.drawAt).getTime();
+      add.onclick = () => { $('#menu').value = suggestion.name; $('#menuForm').requestSubmit(); };
+      card.append(add); $('#suggestedMenus').append(card);
+    }
+    if (!result.suggestions.length) $('#suggestionLabel').textContent = mode === 'store'
+      ? '회사 주변 1km 안에서 날씨에 맞는 식당을 확인하지 못했어요. 직접 메뉴를 입력해 주세요.'
+      : '오늘의 추천 메뉴를 준비하지 못했어요. 직접 메뉴를 입력해 주세요.';
+  } catch (error) {
+    if (key !== suggestionKey) return;
+    $('#suggestionLabel').textContent = `추천 메뉴를 불러오지 못했어요. ${error.message}`;
+    suggestionCheckedAt = Date.now() - 29 * 60 * 1000;
+  }
 }
 async function loadWeather(address) {
   weatherLoading = true;
@@ -200,6 +249,7 @@ document.querySelectorAll('[data-mode]').forEach(button => button.onclick = () =
     item.classList.toggle('active', active);
     item.setAttribute('aria-pressed', String(active));
   });
+  if (roundData) loadSuggestions();
 });
 $('#settingsBtn').onclick = () => {
   $('#settingsCard').classList.toggle('hidden');

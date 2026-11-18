@@ -53,7 +53,6 @@ class LunchServiceTest {
     @Test void drawAtCutoffIsStableAndRejectsLateEntries() {
         CreatedRound r = service.create("점심", "우리방");
         service.register(r.id(), r.joinToken(), UUID.randomUUID(), "A", "국밥");
-        assertThrows(IllegalStateException.class, () -> service.draw(r.id(), r.ownerToken(), false));
         service = new LunchService(repo, "test-secret", Clock.fixed(Instant.parse("2026-11-16T01:45:00Z"), ZoneOffset.UTC));
         assertThrows(IllegalStateException.class, () -> service.register(r.id(), r.joinToken(), UUID.randomUUID(), "B", "냉면"));
         RoundView first = service.get(r.id(), r.joinToken());
@@ -62,6 +61,25 @@ class LunchServiceTest {
         assertEquals(first.winner(), second.winner());
         assertEquals(1, repo.drawCount);
         assertThrows(IllegalStateException.class, () -> service.draw(r.id(), r.ownerToken(), true));
+    }
+
+    @Test void ownerCanRevealEarlyAndEveryoneKeepsTheSameResult() {
+        CreatedRound r = service.create("점심", "우리방");
+        UUID participant = UUID.randomUUID();
+        service.register(r.id(), r.joinToken(), participant, "익명", "김치찌개");
+        service.register(r.id(), r.joinToken(), participant, "익명", "돈까스");
+        assertThrows(SecurityException.class, () -> service.draw(r.id(), "wrong", false));
+
+        RoundView early = service.draw(r.id(), r.ownerToken(), false);
+        assertEquals(RoundStatus.DRAWN, early.status());
+        assertEquals(clock.instant(), early.drawAt());
+        assertTrue(early.candidates().contains(early.winner()));
+        assertThrows(IllegalStateException.class, () -> service.register(r.id(), r.joinToken(), participant, "익명", "초밥"));
+        assertEquals(early.winner(), service.draw(r.id(), r.ownerToken(), false).winner());
+
+        service = new LunchService(repo, "test-secret", Clock.fixed(Instant.parse("2026-11-16T01:45:00Z"), ZoneOffset.UTC));
+        assertEquals(early.winner(), service.get(r.id(), r.joinToken()).winner());
+        assertEquals(1, repo.drawCount);
     }
 
     @Test void emptyRoundClosesAtCutoff() {
@@ -128,10 +146,10 @@ class LunchServiceTest {
         public void deleteEntry(UUID rid, UUID pid) { entries.get(rid).removeIf(e -> e.participantId().equals(pid)); }
         public void deleteEntry(UUID rid, UUID pid, UUID entryId) { entries.get(rid).removeIf(e -> e.participantId().equals(pid) && e.id().equals(entryId)); }
         public List<String> candidates(UUID id) { return entries.get(id).stream().map(e -> e.menu().strip()).distinct().toList(); }
-        public boolean draw(UUID id, String winner, long version, boolean reroll) {
+        public boolean draw(UUID id, String winner, long version, boolean reroll, Instant drawnAt) {
             LunchRound r = rounds.get(id);
             if (r.version() != version || r.status() != (reroll ? RoundStatus.DRAWN : RoundStatus.OPEN)) return false;
-            rounds.put(id, new LunchRound(id, r.ownerId(), r.title(), r.roomName(), r.joinTokenHash(), RoundStatus.DRAWN, winner, version + 1, r.createdAt(), Instant.now(), r.drawAt(), r.officeAddress(), r.lunchStartTime(), r.lunchEndTime()));
+            rounds.put(id, new LunchRound(id, r.ownerId(), r.title(), r.roomName(), r.joinTokenHash(), RoundStatus.DRAWN, winner, version + 1, r.createdAt(), Instant.now(), drawnAt, r.officeAddress(), r.lunchStartTime(), r.lunchEndTime()));
             drawCount++; return true;
         }
         public boolean close(UUID id, long version) {

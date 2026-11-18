@@ -60,9 +60,10 @@ function updateCountdown() {
   if (!roundData.drawAt) { $('#countdown').textContent = '이전 방식의 방이에요. 홈에서 새 방을 만들어주세요.'; $('#spinBtn').disabled = true; return; }
   const ms = new Date(roundData.drawAt).getTime() - Date.now();
   if (roundData.status === 'CLOSED') $('#countdown').textContent = '등록된 메뉴가 없어 룰렛이 마감됐어요.';
+  else if (roundData.status === 'DRAWN') $('#countdown').textContent = '🎉 오늘의 결과가 공개됐어요!';
   else if (ms > 0) { const seconds = Math.ceil(ms / 1000), hours = Math.floor(seconds / 3600), minutes = Math.floor(seconds % 3600 / 60); $('#countdown').textContent = `결과 공개까지 ${hours ? `${hours}시간 ` : ''}${minutes}분 ${seconds % 60}초 남았어요 🐣`; }
   else $('#countdown').textContent = '두구두구… 룰렛 결과가 준비됐어요!';
-  $('#spinBtn').disabled = roundData.status === 'CLOSED' || ms > 0 || spinning || roundData.candidates.length === 0;
+  $('#spinBtn').disabled = spinning || !(roundData.status === 'DRAWN' && roundData.winner || roundData.status === 'OPEN' && ms <= 0 && roundData.candidates.length > 0);
 }
 function showRound(data) {
   if (lastDrawAt && lastDrawAt !== data.drawAt) {
@@ -78,7 +79,7 @@ function showRound(data) {
   $('#settingsForm').classList.toggle('hidden', !ownerToken);
   $('#settingsReadOnly').classList.toggle('hidden', !!ownerToken);
   $('#status').textContent = { OPEN: '모집 중', DRAWN: '추첨 완료', CLOSED: '모집 마감' }[data.status];
-  $('#schedule').textContent = data.drawAt ? `${drawTime(data)} 공개 · 공개 직전까지 익명 메뉴 입력` : '이전 방식의 방 · 새 점심방을 만들어주세요';
+  $('#schedule').textContent = data.status === 'DRAWN' ? `${drawTime(data)} 결과 확정 · 메뉴 입력 마감` : data.drawAt ? `${drawTime(data)} 공개 · 공개 직전까지 익명 메뉴 입력` : '이전 방식의 방 · 새 점심방을 만들어주세요';
   $('#count').textContent = `${data.candidates.length}개 메뉴 후보`;
   const accepting = data.status === 'OPEN' && data.drawAt && Date.now() < new Date(data.drawAt).getTime();
   const mine = data.entries.filter(entry => entry.mine);
@@ -98,6 +99,7 @@ function showRound(data) {
     $('#myMenus').append(row);
   }
   $('#menuForm').classList.toggle('hidden', !accepting); $('#cancelBtn').classList.toggle('hidden', !accepting || !mine.length);
+  $('#drawNowBtn').classList.toggle('hidden', !ownerToken || data.status !== 'OPEN' || !data.candidates.length);
   updateCountdown();
   $('#illustratedMenus').classList.remove('hidden');
   $('#candidateLabel').classList.toggle('hidden', data.candidates.length === 0);
@@ -241,6 +243,14 @@ $('#menuForm').onsubmit = async event => {
 };
 $('#cancelBtn').onclick = async () => { try { showRound(await api(`/api/rounds/${roundId}/entries/me?token=${encodeURIComponent(joinToken)}`, { method: 'DELETE', headers: { 'X-Participant-Id': participantId() } })); toast('내 메뉴를 모두 취소했어요.'); } catch (error) { toast(error.message); } };
 $('#spinBtn').onclick = async () => { try { await refresh(); if (roundData.winner) { revealed = false; animate(roundData); } else toast('결과를 준비 중이에요. 잠시 후 다시 눌러주세요.'); } catch (error) { toast(error.message); } };
+$('#drawNowBtn').onclick = async () => {
+  const button = $('#drawNowBtn'); button.disabled = true;
+  try {
+    await api(`/api/rounds/${roundId}/draw`, { method: 'POST', headers: { 'X-Owner-Token': ownerToken } });
+    await refresh();
+    toast('결과를 확정했어요. 모두 같은 결과를 볼 수 있어요!');
+  } catch (error) { toast(error.message); button.disabled = false; }
+};
 $('#shareBtn').onclick = async () => { const url = shareUrl || location.href; const text = `🥚 점메추리알에서 익명으로 오늘 점심 메뉴를 골라요!\n10시 44분까지 메뉴 입력 · 10시 45분 룰렛 결과\n${url}`; if (navigator.share) { try { await navigator.share({ title: '점메추리알 🥚', text, url }); } catch {} } else { try { await navigator.clipboard.writeText(text); toast('초대 링크를 복사했어요. 카카오톡 방에 붙여넣어주세요!'); } catch { toast(url); } } };
 document.querySelectorAll('[data-mode]').forEach(button => button.onclick = () => {
   diningMode = button.dataset.mode;

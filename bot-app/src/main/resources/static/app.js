@@ -194,7 +194,7 @@ async function loadRestaurants() {
     const result = await api(`/api/rounds/${roundId}/restaurants?token=${encodeURIComponent(joinToken)}`);
     $('#restaurantStatus').textContent = (result.menuMatched
       ? `🥚 ${result.winningMenu} 메뉴와 관련된 식당 ${result.restaurants.length}곳`
-      : `🥚 ${result.winningMenu} 메뉴와 맞는 식당을 찾지 못해 주변 식당 ${result.restaurants.length}곳을 보여드려요.`)
+      : `🥚 회사 주변 1km에서 ${result.winningMenu} 관련 식당을 찾지 못했어요.`)
       + (result.winningMenu.startsWith('배달 ·') ? ' 배달 가능 여부는 매장에 확인해주세요.' : '');
     $('#restaurantList').innerHTML = result.restaurants.map((p, i) => {
       const safeUrl = /^https:\/\//i.test(p.placeUrl || '') ? escapeHtml(p.placeUrl) : '';
@@ -295,3 +295,4 @@ setInterval(() => { if (roundId && joinToken) refresh().catch(() => {}); }, 1500
   history.replaceState({}, '', location.pathname);
   try { await refresh(); } catch (error) { toast(error.message); }
 })();
+

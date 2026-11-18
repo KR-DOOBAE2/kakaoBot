@@ -115,7 +115,7 @@ public class OpenStreetMapRestaurantAdapter implements RestaurantSearch, Address
         }
         if (!matches.isEmpty()) return matches.values().stream()
                 .sorted(Comparator.comparingInt(PlaceSearchResult::distanceMeters)).toList();
-        return nearby.isEmpty() ? searchNominatim(latitude, longitude, radiusMeters, "[restaurant]") : nearby;
+        return List.of();
     }
 
     @Override

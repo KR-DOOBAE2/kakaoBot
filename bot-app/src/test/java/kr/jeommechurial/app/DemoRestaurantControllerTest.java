@@ -9,6 +9,15 @@ import org.junit.jupiter.api.Test;
 
 class DemoRestaurantControllerTest {
     @Test
+    void doesNotRecommendTteokbokkiForGrilledFish() {
+        FakeSearch search = new FakeSearch();
+        var result = new DemoRestaurantController(search).recommend(
+                new DemoRestaurantController.Request("서울시청", "생선구이"));
+        assertThat(result.menuMatched()).isFalse();
+        assertThat(result.restaurants()).isEmpty();
+    }
+
+    @Test
     void recommendsNearbyRestaurantsMatchingTheDrawnMenu() {
         FakeSearch search = new FakeSearch();
 
@@ -53,3 +62,4 @@ class DemoRestaurantControllerTest {
         }
     }
 }
+

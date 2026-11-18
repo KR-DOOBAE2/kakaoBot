@@ -71,8 +71,8 @@ async function recommendRestaurants(bubble = message('📍 회사 주변 식당�
     title.textContent = result.restaurants.length
       ? result.menuMatched
         ? `📍 ${result.winningMenu} 관련 식당 ${result.restaurants.length}곳`
-        : `📍 ${result.winningMenu} 관련 식당이 없어 주변 식당 ${result.restaurants.length}곳`
-      : '📍 반경 1km에서 식당을 찾지 못했어요.';
+        : `📍 ${result.winningMenu} 관련 식당을 찾지 못했어요.`
+      : `📍 회사 주변 1km에서 ${result.winningMenu} 관련 식당을 찾지 못했어요.`;
     bubble.append(title);
     for (const [index, place] of result.restaurants.entries()) {
       const item = document.createElement('div'); item.className = 'demo-restaurant';
@@ -194,3 +194,4 @@ $('#plusBtn').onclick = () => $('#chatInput').focus();
 $('#sampleBtn').onclick = () => { if (phase !== 'collect') return; ['김치찌개', '돈까스', '초밥'].forEach(submit); };
 document.querySelectorAll('[data-menu]').forEach(button => button.onclick = () => submit(button.dataset.menu));
 reset();
+

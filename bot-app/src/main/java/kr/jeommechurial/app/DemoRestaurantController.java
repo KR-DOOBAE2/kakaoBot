@@ -49,7 +49,7 @@ public class DemoRestaurantController {
         List<PlaceSearchResult> matching = nearby.stream()
                 .filter(place -> RoundRestaurantService.matches(
                         query.menu(), place.name(), place.category())).toList();
-        List<Place> places = (matching.isEmpty() ? nearby : matching).stream()
+        List<Place> places = matching.stream()
                 .sorted(Comparator.comparingInt(PlaceSearchResult::distanceMeters))
                 .limit(5)
                 .map(place -> new Place(place.name(), place.address(), place.distanceMeters(),
@@ -65,3 +65,4 @@ public class DemoRestaurantController {
     private record Query(String address, String menu) {}
     private record CachedResult(Instant createdAt, Recommendation recommendation) {}
 }
+

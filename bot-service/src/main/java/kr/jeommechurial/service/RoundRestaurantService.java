@@ -39,10 +39,9 @@ public class RoundRestaurantService {
         RestaurantSearch.Location location = search.geocode(round.officeAddress());
         List<PlaceCandidate> places = restaurants.discover(search.nearbyRestaurantsForMenu(
                 location.latitude(), location.longitude(), 1000, round.winner()));
-        if (places.isEmpty()) throw new IllegalStateException("회사 주변 1km에서 식당을 찾지 못했어요. 주소를 확인해주세요.");
         List<PlaceCandidate> matching = places.stream()
                 .filter(p -> matches(round.winner(), p.name(), p.category())).toList();
-        List<Restaurant> ranked = (matching.isEmpty() ? places : matching).stream().map(p -> new Restaurant(
+        List<Restaurant> ranked = matching.stream().map(p -> new Restaurant(
                 p.placeId(), p.name(), p.address(), p.category(), p.placeUrl(), p.distanceMeters(),
                 p.newlyDiscovered(), (int) round.entries().stream().map(MenuEntry::menu)
                         .filter(menu -> matches(menu, p.name(), p.category())).count(), p.score()))
@@ -52,7 +51,7 @@ public class RoundRestaurantService {
                         .thenComparing(Comparator.comparingInt(Restaurant::ratingScore).reversed())
                         .thenComparing(Restaurant::name))
                 .limit(5).toList();
-        return new Recommendation(round.winner(), !matching.isEmpty(), ranked.get(0), ranked);
+        return new Recommendation(round.winner(), !ranked.isEmpty(), ranked.isEmpty() ? null : ranked.get(0), ranked);
     }
 
     public static boolean matches(String menu, String name, String category) {
@@ -69,6 +68,8 @@ public class RoundRestaurantService {
         String cleaned = menu.replaceFirst("^(매장|배달)\\s*·\\s*", "").strip();
         if (cleaned.contains("떡볶이") || cleaned.contains("라볶이"))
             return List.of(cleaned, "분식");
+        if (cleaned.contains("생선구이") || cleaned.contains("고등어구이") || cleaned.contains("갈치구이"))
+            return List.of(cleaned, "생선구이", "고등어구이", "갈치구이", "생선");
         return List.of(cleaned);
     }
 
@@ -83,6 +84,7 @@ public class RoundRestaurantService {
             "chinese", List.of("중식", "chinese", "짜장", "짬뽕", "마라", "탕수육"),
             "western", List.of("양식", "italian", "western", "파스타", "피자", "스테이크"),
             "bunsik", List.of("분식", "떡볶이", "라볶이"),
+            "grilledfish", List.of("생선구이", "고등어구이", "갈치구이", "삼치구이", "생선", "고등어", "갈치", "삼치"),
             "fastfood", List.of("패스트푸드", "fastfood", "burger", "햄버거", "샌드위치"));
 
     public record Restaurant(String placeId, String name, String address, String category, String placeUrl,

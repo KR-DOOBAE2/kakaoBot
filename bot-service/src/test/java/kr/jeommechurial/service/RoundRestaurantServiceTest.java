@@ -21,6 +21,29 @@ class RoundRestaurantServiceTest {
         assertFalse(RoundRestaurantService.matches("떡볶이", "초밥집", "japanese"));
         assertEquals(List.of("떡볶이", "분식"), RoundRestaurantService.searchTerms("매장 · 떡볶이"));
     }
+    @Test void grilledFishDoesNotMatchTteokbokkiAndSearchesRelatedTerms() {
+        assertFalse(RoundRestaurantService.matches("생선구이", "무명떡볶이", "분식"));
+        assertTrue(RoundRestaurantService.matches("생선구이", "고등어구이 전문점", "restaurant"));
+        assertTrue(RoundRestaurantService.searchTerms("생선구이").contains("고등어구이"));
+    }
+    @Test void returnsEmptyRecommendationWhenOnlyUnrelatedPlacesExist() {
+        var rounds = new LunchServiceTest.FakeRepository();
+        var lunch = new LunchService(rounds, "secret", Clock.fixed(Instant.parse("2026-11-16T01:00:00Z"), ZoneOffset.UTC));
+        var created = lunch.create("점심", "팀", "서울시청", LocalTime.NOON, LocalTime.of(13, 0));
+        lunch.register(created.id(), created.joinToken(), UUID.randomUUID(), null, "생선구이");
+        var due = new LunchService(rounds, "secret", Clock.fixed(Instant.parse("2026-11-16T01:45:00Z"), ZoneOffset.UTC));
+        var catalog = new OfficeLunchServiceTest.FakeOfficeRepository() {
+            @Override public List<PlaceCandidate> discover(List<PlaceSearchResult> ignored) {
+                return List.of(new PlaceCandidate("tteokbokki", "무명떡볶이", "주소", "분식", "",
+                        "https://example.com", 37.5, 127, 200, Instant.now(), 0, 0));
+            }
+        };
+        var result = new RoundRestaurantService(due, search(), catalog)
+                .recommend(created.id(), created.joinToken());
+        assertFalse(result.menuMatched());
+        assertNull(result.topPick());
+        assertTrue(result.restaurants().isEmpty());
+    }
     @Test void requiresDrawAndValidParticipationLink() {
         var rounds = new LunchServiceTest.FakeRepository();
         var lunch = new LunchService(rounds, "secret", Clock.fixed(Instant.parse("2026-11-16T01:00:00Z"), ZoneOffset.UTC));

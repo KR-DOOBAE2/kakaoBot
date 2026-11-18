@@ -30,6 +30,9 @@ public class OpenStreetMapRestaurantAdapter implements RestaurantSearch, Address
     // Verified address point; Nominatim otherwise resolves this street number to a distant road segment.
     // https://jusoga.com/b/1168010800100700013005398/
     private static final Location BOJEON_BUILDING = new Location(37.519313338214, 127.03449892281);
+    // The shop is at 언주로138길 6; this point is the adjacent public address point at number 8.
+    // https://dining.ayo.pe.kr/restaurant/93af32e4a27af61beddaa7dea18ff6c9
+    private static final Location MUMYEONG_TTEOKBOKKI = new Location(37.51778, 127.0362);
     private long lastNominatimAt;
 
     public OpenStreetMapRestaurantAdapter(RestClient.Builder builder,
@@ -95,6 +98,7 @@ public class OpenStreetMapRestaurantAdapter implements RestaurantSearch, Address
         } catch (RuntimeException unavailable) {
             nearby = List.of();
         }
+        nearby = addVerifiedPlaces(nearby, latitude, longitude, radiusMeters);
         if (food.isBlank()) return nearby;
         LinkedHashMap<String, PlaceSearchResult> matches = new LinkedHashMap<>();
         for (PlaceSearchResult place : nearby)
@@ -118,11 +122,28 @@ public class OpenStreetMapRestaurantAdapter implements RestaurantSearch, Address
     public synchronized List<PlaceSearchResult> nearbyRestaurantsMatchingMenu(double latitude, double longitude,
                                                                                int radiusMeters, String menu) {
         LinkedHashMap<String, PlaceSearchResult> matches = new LinkedHashMap<>();
+        for (PlaceSearchResult place : addVerifiedPlaces(List.of(), latitude, longitude, radiusMeters))
+            if (RoundRestaurantService.matches(menu, place.name(), place.category()))
+                matches.put(place.placeId(), place);
         for (String term : RoundRestaurantService.searchTerms(menu))
             for (PlaceSearchResult place : searchNominatim(latitude, longitude, radiusMeters, term))
                 if (RoundRestaurantService.matches(menu, place.name(), place.category()))
                     matches.putIfAbsent(place.placeId(), place);
         return matches.values().stream().sorted(Comparator.comparingInt(PlaceSearchResult::distanceMeters)).toList();
+    }
+
+    static List<PlaceSearchResult> addVerifiedPlaces(List<PlaceSearchResult> places,
+                                                     double latitude, double longitude, int radiusMeters) {
+        int distance = distanceMeters(latitude, longitude,
+                MUMYEONG_TTEOKBOKKI.latitude(), MUMYEONG_TTEOKBOKKI.longitude());
+        if (distance > radiusMeters || places.stream().anyMatch(p -> p.name().contains("무명떡볶이")))
+            return places;
+        List<PlaceSearchResult> combined = new ArrayList<>(places);
+        combined.add(new PlaceSearchResult("verified-mumyeong-tteokbokki", "무명떡볶이 본점",
+                "서울 강남구 언주로138길 6", "분식", "",
+                "https://www.google.com/maps/search/?api=1&query=%EB%AC%B4%EB%AA%85%EB%96%A1%EB%B3%B6%EC%9D%B4%20%EB%B3%B8%EC%A0%90",
+                MUMYEONG_TTEOKBOKKI.latitude(), MUMYEONG_TTEOKBOKKI.longitude(), distance));
+        return List.copyOf(combined);
     }
 
     private static boolean isBojeonBuildingAddress(String address) {

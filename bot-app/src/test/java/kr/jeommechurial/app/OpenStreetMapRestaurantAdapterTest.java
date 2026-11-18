@@ -16,6 +16,12 @@ class OpenStreetMapRestaurantAdapterTest {
         assertEquals(37.519313338214, location.latitude(), 0.000001);
         assertEquals(127.03449892281, location.longitude(), 0.000001);
         assertEquals(location.latitude(), adapter.searchAddresses("서울 강남구 언주로 725").getFirst().latitude());
+        var nearby = OpenStreetMapRestaurantAdapter.addVerifiedPlaces(
+                java.util.List.of(), location.latitude(), location.longitude(), 1000);
+        assertEquals("무명떡볶이 본점", nearby.getFirst().name());
+        assertTrue(nearby.getFirst().distanceMeters() < 300);
+        assertTrue(OpenStreetMapRestaurantAdapter.addVerifiedPlaces(
+                java.util.List.of(), 37.4, 127.0, 1000).isEmpty());
     }
 
     @Test void readsNamedRestaurantsAndFiltersPlacesOutsideRadius() throws Exception {

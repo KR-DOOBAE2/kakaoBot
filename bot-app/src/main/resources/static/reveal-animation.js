@@ -20,10 +20,29 @@
       character.style.setProperty('--row', `${actor.row * 20}%`);
       character.style.setProperty('--delay', `${actor.delay}s`);
       character.setAttribute('aria-hidden', 'true');
-      const pose = document.createElement('span');
-      pose.className = 'reveal-pose';
+      const pose = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      pose.setAttribute('class', 'reveal-pose');
+      pose.setAttribute('viewBox', `0 ${actor.row * 256} 256 256`);
+      pose.setAttribute('aria-hidden', 'true');
+      const atlas = document.createElementNS('http://www.w3.org/2000/svg', 'image');
+      atlas.setAttribute('href', '/characters/reveal-sprites.png');
+      atlas.setAttribute('width', '1024');
+      atlas.setAttribute('height', '1536');
+      pose.append(atlas);
       character.append(pose);
       scene.append(character);
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        pose.setAttribute('viewBox', `768 ${actor.row * 256} 256 256`);
+      } else {
+        setTimeout(() => {
+          let frame = 0;
+          const frames = setInterval(() => {
+            frame++;
+            pose.setAttribute('viewBox', `${frame * 256} ${actor.row * 256} 256 256`);
+            if (frame === 3) clearInterval(frames);
+          }, 350);
+        }, actor.delay * 1000);
+      }
     }
 
     const meal = document.createElement('div');

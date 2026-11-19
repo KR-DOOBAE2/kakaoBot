@@ -3,6 +3,7 @@ package kr.jeommechurial.service;
 import kr.jeommechurial.core.OfficeProfile;
 import kr.jeommechurial.core.PlaceCandidate;
 import kr.jeommechurial.core.PlaceSearchResult;
+import kr.jeommechurial.core.Satisfaction;
 import java.time.LocalDate;
 import java.util.*;
 
@@ -15,7 +16,7 @@ public interface OfficeRepository {
     boolean hasVoted(LocalDate date, UUID participantId);
     void vote(LocalDate date, UUID participantId, String placeId);
     Map<String, Long> votes(LocalDate date);
-    void rate(UUID participantId, String placeId, boolean liked);
+    void rate(UUID participantId, String placeId, Satisfaction satisfaction);
     Optional<String> winner(LocalDate date);
     void setWinner(LocalDate date, String placeId);
     void subscribe(String botUserKey);

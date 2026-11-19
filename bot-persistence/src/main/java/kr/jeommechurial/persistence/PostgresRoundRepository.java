@@ -7,17 +7,19 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.*;
 
 @Repository @Transactional
 class PostgresRoundRepository implements RoundRepository {
-    private final RoundJpa rounds; private final MenuJpa menus;
+    private final RoundJpa rounds; private final MenuJpa menus; private final RoundSatisfactionJpa satisfaction;
     @PersistenceContext private EntityManager entityManager;
-    PostgresRoundRepository(RoundJpa rounds,MenuJpa menus){this.rounds=rounds;this.menus=menus;}
+    PostgresRoundRepository(RoundJpa rounds,MenuJpa menus,RoundSatisfactionJpa satisfaction){this.rounds=rounds;this.menus=menus;this.satisfaction=satisfaction;}
     public LunchRound create(UUID owner,String title,String room,String tokenHash,Instant drawAt,String officeAddress,LocalTime lunchStartTime,LocalTime lunchEndTime){RoundEntity e=new RoundEntity();e.ownerId=owner;e.title=title;e.roomName=room;e.joinTokenHash=tokenHash;e.drawAt=drawAt;e.officeAddress=officeAddress;e.lunchStartTime=lunchStartTime;e.lunchEndTime=lunchEndTime;return model(rounds.save(e));}
     @Transactional(readOnly=true) public Optional<LunchRound> find(UUID id){return rounds.findById(id).map(PostgresRoundRepository::model);}
     @Transactional(readOnly=true) public List<LunchRound> findDueOpen(Instant now){return rounds.findByStatusAndDrawAtLessThanEqual("OPEN",now).stream().map(PostgresRoundRepository::model).toList();}
+    @Transactional(readOnly=true) public List<LunchRound> findBefore(Instant midnight){return rounds.findByDrawAtLessThan(midnight).stream().map(PostgresRoundRepository::model).toList();}
     @Transactional(readOnly=true) public List<MenuEntry> entries(UUID id){return menus.findByRoundIdOrderByCreatedAtAsc(id).stream().map(PostgresRoundRepository::model).toList();}
     public MenuEntry addEntry(UUID rid,UUID pid,String name,String menu){menus.insertIfAbsent(UUID.randomUUID(),rid,pid,name,menu);return model(menus.findByRoundIdAndParticipantIdAndMenuIgnoreCase(rid,pid,menu).orElseThrow());}
     public void deleteEntry(UUID rid,UUID pid){menus.remove(rid,pid);}
@@ -25,8 +27,12 @@ class PostgresRoundRepository implements RoundRepository {
     @Transactional(readOnly=true) public List<String> candidates(UUID id){return menus.findByRoundIdOrderByCreatedAtAsc(id).stream().map(MenuEntity::getMenu).filter(Objects::nonNull).collect(java.util.stream.Collectors.toMap(v->v.strip().toLowerCase(Locale.ROOT),v->v.strip(),(first,ignored)->first,TreeMap::new)).values().stream().toList();}
     public boolean draw(UUID id,String winner,long expected,boolean reroll,Instant drawnAt){int n=entityManager.createNativeQuery("update lunch_rounds set winner=:winner,status='DRAWN',draw_at=:drawAt,version=version+1,updated_at=now() where id=:id and version=:version and status=:status").setParameter("winner",winner).setParameter("drawAt",drawnAt).setParameter("id",id).setParameter("version",expected).setParameter("status",reroll?"DRAWN":"OPEN").executeUpdate();if(n==1)entityManager.clear();return n==1;}
     public boolean close(UUID id,long expected){int n=entityManager.createNativeQuery("update lunch_rounds set status='CLOSED',version=version+1,updated_at=now() where id=:id and version=:version and status<>'CLOSED'").setParameter("id",id).setParameter("version",expected).executeUpdate();if(n==1)entityManager.clear();return n==1;}
-    public boolean updateSettings(UUID id,String address,LocalTime start,LocalTime end,long expected){int n=entityManager.createNativeQuery("update lunch_rounds set office_address=:address,lunch_start_time=:start,lunch_end_time=:end,version=version+1,updated_at=now() where id=:id and version=:version").setParameter("address",address).setParameter("start",start).setParameter("end",end).setParameter("id",id).setParameter("version",expected).executeUpdate();if(n==1)entityManager.clear();return n==1;}
+    public boolean updateSettings(UUID id,String address,LocalTime start,LocalTime end,Instant nextDrawAt,long expected){int n=entityManager.createNativeQuery("update lunch_rounds set office_address=:address,lunch_start_time=:start,lunch_end_time=:end,draw_at=case when status='OPEN' then :drawAt else draw_at end,version=version+1,updated_at=now() where id=:id and version=:version").setParameter("address",address).setParameter("start",start).setParameter("end",end).setParameter("drawAt",nextDrawAt).setParameter("id",id).setParameter("version",expected).executeUpdate();if(n==1)entityManager.clear();return n==1;}
     public boolean resetForNewDay(UUID id,Instant drawAt,long expected){int n=entityManager.createNativeQuery("update lunch_rounds set status='OPEN',winner=null,draw_at=:drawAt,version=version+1,updated_at=now() where id=:id and version=:version").setParameter("drawAt",drawAt).setParameter("id",id).setParameter("version",expected).executeUpdate();if(n==1){menus.deleteByRoundId(id);entityManager.clear();}return n==1;}
+    public void saveSatisfaction(UUID id,LocalDate day,UUID participant,Satisfaction rating){entityManager.createNativeQuery("insert into round_satisfaction(id,round_id,rated_on,participant_id,satisfaction,updated_at) values (:id,:round,:day,:participant,:rating,now()) on conflict (round_id,rated_on,participant_id) do update set satisfaction=excluded.satisfaction,updated_at=now()")
+            .setParameter("id",UUID.randomUUID()).setParameter("round",id).setParameter("day",day).setParameter("participant",participant).setParameter("rating",rating.name()).executeUpdate();entityManager.clear();}
+    @Transactional(readOnly=true) public Optional<Satisfaction> satisfaction(UUID id,LocalDate day,UUID participant){return satisfaction.findByRoundIdAndRatedOnAndParticipantId(id,day,participant).map(e->Satisfaction.valueOf(e.satisfaction));}
+    @Transactional(readOnly=true) public Map<Satisfaction,Long> satisfactionCounts(UUID id,LocalDate day){Map<Satisfaction,Long> counts=new EnumMap<>(Satisfaction.class);for(var e:satisfaction.findByRoundIdAndRatedOn(id,day))counts.merge(Satisfaction.valueOf(e.satisfaction),1L,Long::sum);return counts;}
     private static LunchRound model(RoundEntity e){return new LunchRound(e.id,e.ownerId,e.title,e.roomName,e.joinTokenHash,RoundStatus.valueOf(e.status),e.winner,e.version,e.createdAt,e.updatedAt,e.drawAt,e.officeAddress,e.lunchStartTime,e.lunchEndTime);}
     private static MenuEntry model(MenuEntity e){return new MenuEntry(e.id,e.roundId,e.participantId,e.participantName,e.menu,e.createdAt,e.updatedAt);}
 }

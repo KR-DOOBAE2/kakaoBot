@@ -31,7 +31,7 @@ class RoundRestaurantServiceTest {
         var lunch = new LunchService(rounds, "secret", Clock.fixed(Instant.parse("2026-11-16T01:00:00Z"), ZoneOffset.UTC));
         var created = lunch.create("점심", "팀", "서울시청", LocalTime.NOON, LocalTime.of(13, 0));
         lunch.register(created.id(), created.joinToken(), UUID.randomUUID(), null, "생선구이");
-        var due = new LunchService(rounds, "secret", Clock.fixed(Instant.parse("2026-11-16T01:45:00Z"), ZoneOffset.UTC));
+        var due = new LunchService(rounds, "secret", Clock.fixed(Instant.parse("2026-11-16T02:30:00Z"), ZoneOffset.UTC));
         var catalog = new OfficeLunchServiceTest.FakeOfficeRepository() {
             @Override public List<PlaceCandidate> discover(List<PlaceSearchResult> ignored) {
                 return List.of(new PlaceCandidate("tteokbokki", "무명떡볶이", "주소", "분식", "",
@@ -59,7 +59,7 @@ class RoundRestaurantServiceTest {
         var created = lunch.create("점심", "팀", "서울시청", LocalTime.NOON, LocalTime.of(13, 0));
         lunch.register(created.id(), created.joinToken(), UUID.randomUUID(), null, "김치찌개");
         lunch.register(created.id(), created.joinToken(), UUID.randomUUID(), null, "김치찌개");
-        var due = new LunchService(rounds, "secret", Clock.fixed(Instant.parse("2026-11-16T01:45:00Z"), ZoneOffset.UTC));
+        var due = new LunchService(rounds, "secret", Clock.fixed(Instant.parse("2026-11-16T02:30:00Z"), ZoneOffset.UTC));
         var catalog = new OfficeLunchServiceTest.FakeOfficeRepository() {
             @Override public List<PlaceCandidate> discover(List<PlaceSearchResult> ignored) {
                 Instant now = Instant.now();

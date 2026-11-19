@@ -68,7 +68,7 @@ function updateCountdown() {
 function showRound(data) {
   if (lastDrawAt && lastDrawAt !== data.drawAt) {
     revealed = false; restaurantLoaded = false;
-    $('#winner').classList.add('hidden');
+    $('#winner').classList.add('hidden'); $('#winner').classList.remove('revealed');
     $('#restaurantList').replaceChildren();
   }
   lastDrawAt = data.drawAt;
@@ -79,7 +79,7 @@ function showRound(data) {
   $('#settingsForm').classList.toggle('hidden', !ownerToken);
   $('#settingsReadOnly').classList.toggle('hidden', !!ownerToken);
   $('#status').textContent = { OPEN: '모집 중', DRAWN: '추첨 완료', CLOSED: '모집 마감' }[data.status];
-  $('#schedule').textContent = data.status === 'DRAWN' ? `${drawTime(data)} 결과 확정 · 메뉴 입력 마감` : data.drawAt ? `${drawTime(data)} 공개 · 공개 직전까지 익명 메뉴 입력` : '이전 방식의 방 · 새 점심방을 만들어주세요';
+  $('#schedule').textContent = data.status === 'DRAWN' ? `${drawTime(data)} 결과 확정 · 메뉴 입력 마감` : data.drawAt ? `${drawTime(data)} 메뉴 마감·추첨 · 점심 종료 후 만족도 평가` : '이전 방식의 방 · 새 점심방을 만들어주세요';
   $('#count').textContent = `${data.candidates.length}개 메뉴 후보`;
   const accepting = data.status === 'OPEN' && data.drawAt && Date.now() < new Date(data.drawAt).getTime();
   const mine = data.entries.filter(entry => entry.mine);
@@ -110,6 +110,7 @@ function showRound(data) {
   if (data.winner && !revealed && !spinning) animate(data);
   $('#restaurantCard').classList.toggle('hidden', !data.winner);
   if (data.winner && !restaurantLoaded && !restaurantLoading) loadRestaurants();
+  loadSatisfaction(data).catch(() => {});
   if (data.officeAddress && !weatherLoading && (weatherAddress !== data.officeAddress || Date.now() - weatherCheckedAt > 30 * 60 * 1000)) loadWeather(data.officeAddress);
 }
 function renderIllustrations(data) {
@@ -263,12 +264,35 @@ async function showNaverResults() {
 function animate(data) {
   if (spinning || !data.winner) return;
   spinning = true; revealed = false; renderIllustrations(data); $('#winner').classList.remove('hidden'); $('#winner').classList.add('spinning');
+  const slices = Array.from({length:6},(_,i) => `<span class="reveal-slice" style="--i:${i};--pos:${i*20}%"></span>`).join('');
+  $('#winner').innerHTML = `<div class="reveal-stage" role="img" aria-label="여섯 친구가 수채화 풍경에서 오늘의 점심을 공개해요">${slices}<div class="reveal-food"><span class="reveal-icon">${foodFor(data.winner)}</span><strong class="reveal-label">두구두구…</strong></div></div>`;
   const choices = data.candidates.length ? data.candidates : [data.winner];
   let step = 0;
-  const timer = setInterval(() => { $('#winner').innerHTML = `<small>🥚 두구두구…</small>${escapeHtml(choices[step++ % choices.length])}`; }, 85);
+  const timer = setInterval(() => { const label=$('#winner .reveal-label'); if(label)label.textContent=choices[step++ % choices.length]; }, 100);
   updateCountdown();
-  setTimeout(() => { clearInterval(timer); $('#winner').classList.remove('spinning'); $('#winner').innerHTML = `<small>오늘의 점메추리알 당첨!</small>🎉 ${escapeHtml(data.winner)}`; spinning = false; revealed = true; renderIllustrations(data); updateCountdown(); }, 2700);
+  setTimeout(() => { clearInterval(timer); $('#winner').classList.remove('spinning'); $('#winner').classList.add('revealed'); const label=$('#winner .reveal-label'); if(label)label.textContent=`🎉 ${data.winner}`; spinning = false; revealed = true; renderIllustrations(data); updateCountdown(); }, 2700);
 }
+function satisfactionOpenAt(data) {
+  if (!data.drawAt || !data.lunchEndTime) return null;
+  const day = new Date(new Date(data.drawAt).getTime() + 9 * 3600 * 1000).toISOString().slice(0,10);
+  return new Date(`${day}T${String(data.lunchEndTime).slice(0,5)}:00+09:00`);
+}
+async function loadSatisfaction(data) {
+  const card=$('#satisfactionCard');
+  if (!data.winner || !data.lunchEndTime) { card.classList.add('hidden'); return; }
+  card.classList.remove('hidden');
+  const opensAt=satisfactionOpenAt(data), open=opensAt && Date.now()>=opensAt.getTime();
+  document.querySelectorAll('[data-satisfaction]').forEach(button => button.disabled=!open);
+  if (!open) { $('#satisfactionStatus').textContent=`점심 종료 ${String(data.lunchEndTime).slice(0,5)}부터 평가할 수 있어요.`; $('#satisfactionCounts').textContent=''; return; }
+  const result=await api(`/api/rounds/${roundId}/satisfaction?token=${encodeURIComponent(joinToken)}`,{headers:{'X-Participant-Id':participantId()}});
+  $('#satisfactionStatus').textContent=result.mine ? '내 평가를 저장했어요. 언제든 변경할 수 있어요.' : '오늘의 점심을 평가해주세요.';
+  $('#satisfactionCounts').textContent=`좋아요 ${result.counts.LIKE||0} · 보통이다 ${result.counts.NEUTRAL||0} · 싫어요 ${result.counts.DISLIKE||0}`;
+  document.querySelectorAll('[data-satisfaction]').forEach(button => button.classList.toggle('selected',button.dataset.satisfaction===result.mine));
+}
+document.querySelectorAll('[data-satisfaction]').forEach(button => button.onclick=async () => {
+  try { await api(`/api/rounds/${roundId}/satisfaction?token=${encodeURIComponent(joinToken)}`,{method:'PUT',headers:{'X-Participant-Id':participantId()},body:JSON.stringify({satisfaction:button.dataset.satisfaction})}); await loadSatisfaction(roundData); toast('만족도 평가를 저장했어요!'); }
+  catch(error){toast(error.message);}
+});
 async function refresh() { showRound(await api(`/api/rounds/${roundId}?token=${encodeURIComponent(joinToken)}`, { headers: { 'X-Participant-Id': participantId() } })); }
 $('#createBtn').onclick = async () => {
   try {
@@ -304,7 +328,7 @@ $('#drawNowBtn').onclick = async () => {
     toast('결과를 확정했어요. 모두 같은 결과를 볼 수 있어요!');
   } catch (error) { toast(error.message); button.disabled = false; }
 };
-$('#shareBtn').onclick = async () => { const url = shareUrl || location.href; const text = `🥚 점메추리알에서 익명으로 오늘 점심 메뉴를 골라요!\n10시 44분까지 메뉴 입력 · 10시 45분 룰렛 결과\n${url}`; if (navigator.share) { try { await navigator.share({ title: '점메추리알 🥚', text, url }); } catch {} } else { try { await navigator.clipboard.writeText(text); toast('초대 링크를 복사했어요. 카카오톡 방에 붙여넣어주세요!'); } catch { toast(url); } } };
+$('#shareBtn').onclick = async () => { const url = shareUrl || location.href; const text = `🥚 점메추리알에서 익명으로 오늘 점심 메뉴를 골라요!\n점심 시작 30분 전 메뉴 마감·추첨 · 점심 종료 후 만족도 평가\n${url}`; if (navigator.share) { try { await navigator.share({ title: '점메추리알 🥚', text, url }); } catch {} } else { try { await navigator.clipboard.writeText(text); toast('초대 링크를 복사했어요. 카카오톡 방에 붙여넣어주세요!'); } catch { toast(url); } } };
 document.querySelectorAll('[data-mode]').forEach(button => button.onclick = () => {
   diningMode = button.dataset.mode;
   document.querySelectorAll('[data-mode]').forEach(item => {

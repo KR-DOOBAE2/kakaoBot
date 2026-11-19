@@ -1,7 +1,7 @@
 const $ = selector => document.querySelector(selector);
 const messages = $('#messages');
 const menus = [];
-let phase = 'setup', winner = null, rolling = false, settings = null;
+let phase = 'setup', winner = null, rolling = false, settings = null, myRating = null;
 let recommendationShown = false, recommendationGeneration = 0;
 const characters = ['chiikawa', 'usagi', 'hachiware', 'momonga', 'rakko', 'kurimanju'];
 let foodCatalog = [];
@@ -168,6 +168,12 @@ function setControls() {
   $('#sampleBtn').disabled = !collecting;
   document.querySelectorAll('[data-menu]').forEach(button => button.disabled = !collecting);
 }
+function cutoffLabel() {
+  if (!settings) return '점심 시작 30분 전';
+  const [hour,minute]=settings.start.split(':').map(Number);
+  const total=(hour*60+minute-30+1440)%1440;
+  return `${String(Math.floor(total/60)).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`;
+}
 function settingsForm() {
   const bubble = message('방장님, 회사 주소와 점심 시작·종료 시간을 등록해주세요. 종료 시간은 식사를 마치는 시각이에요. 🏢');
   const form = document.createElement('form'); form.className = 'settings-form';
@@ -181,17 +187,17 @@ function settingsForm() {
     if (!start || !end || end <= start) { form.querySelector('.form-error').textContent = '종료 시간을 시작 시간보다 늦게 설정해주세요.'; return; }
     settings = { address, start, end };
     form.remove(); phase = 'collect';
-    $('#clockLabel').textContent = '오전 10:30 · 메뉴 모집 중';
+    $('#clockLabel').textContent = `${cutoffLabel()} 마감 · 메뉴 모집 중`;
     $('#chatInput').placeholder = '먹고 싶은 메뉴를 입력하세요';
     setControls();
-    message(`✅ 회사 설정이 저장됐어요!\n📍 ${address}\n🍽️ 점심 ${start}~${end}\n\n이제 오전 10시 44분까지 메뉴를 익명으로 입력해주세요.`);
+    message(`✅ 회사 설정이 저장됐어요!\n📍 ${address}\n🍽️ 점심 ${start}~${end}\n\n메뉴는 ${cutoffLabel()}에 마감되고 룰렛 결과가 나와요.`);
   };
   bubble.append(form); messages.scrollTop = messages.scrollHeight;
 }
 function reset() {
-  menus.splice(0); phase = 'setup'; winner = null; rolling = false; settings = null;
+  menus.splice(0); phase = 'setup'; winner = null; rolling = false; settings = null; myRating=null; $('#endBtn').hidden=true;
   recommendationShown = false; recommendationGeneration++; messages.replaceChildren();
-  $('#clockLabel').textContent = '오전 10:30 · 회사 설정 중';
+  $('#clockLabel').textContent = '회사 설정 중';
   $('#chatInput').value = ''; $('#chatInput').placeholder = '방장이 먼저 설정을 저장해주세요';
   const day = document.createElement('div'); day.className = 'day'; day.textContent = '오늘 · 점심 메뉴 모집'; messages.append(day);
   message('안녕하세요! 우리 팀 점심을 정할게요 🐣\n처음에는 방장님이 회사 주소와 식사 시간을 등록해 주세요.');
@@ -201,7 +207,7 @@ function submit(text) {
   const input = text.trim(); if (!input) return; $('#chatInput').value = '';
   if (phase === 'setup') { message('먼저 회사 주소와 점심시간을 저장해주세요.'); return; }
   if (input === '#룰렛돌리기') { spin(); return; }
-  if (phase !== 'collect') { message('메뉴 입력은 10시 44분에 마감됐어요. #룰렛돌리기로 결과를 확인해주세요!'); return; }
+  if (phase !== 'collect') { message('메뉴 입력은 점심 시작 30분 전에 마감됐어요. #룰렛돌리기로 결과를 확인해주세요!'); return; }
   if (input.length > 80) { message('메뉴 이름은 80자 이하로 입력해주세요.'); return; }
   menus.push(input); addArt(message(input, 'anonymous'), input);
   const unique = [...new Map(menus.map(m => [m.toLocaleLowerCase('ko'), m])).values()];
@@ -209,7 +215,7 @@ function submit(text) {
 }
 function advance() {
   if (phase !== 'collect') return;
-  phase = 'drawn'; $('#clockLabel').textContent = '오전 10:45 · 결과 공개'; $('#advanceBtn').disabled = true;
+  phase = 'drawn'; $('#clockLabel').textContent = `${cutoffLabel()} · 결과 공개`; $('#advanceBtn').disabled = true;
   $('#chatInput').placeholder = '#룰렛돌리기';
   const unique = [...new Map(menus.map(m => [m.toLocaleLowerCase('ko'), m])).values()];
   if (!unique.length) { message('입력된 메뉴가 없어 오늘 룰렛은 쉬어가요 🥚'); return; }
@@ -219,25 +225,41 @@ function advance() {
 function spin() {
   if (rolling) return;
   if (phase === 'setup') { message('먼저 회사 주소와 점심시간을 저장해주세요.'); return; }
-  if (phase === 'collect') { message('두구두구… 결과는 오전 10시 45분에 공개돼요!'); return; }
+  if (phase === 'collect') { message(`두구두구… 결과는 ${cutoffLabel()}에 공개돼요!`); return; }
   if (!winner) { message('오늘은 등록된 메뉴가 없어요.'); return; }
   rolling = true; message('#룰렛돌리기', 'mine');
-  const bubble = message('🥚 두구두구…', 'result'); bubble.classList.add('roulette');
+  const bubble = message('', 'result'); bubble.classList.add('roulette');
+  const scene=document.createElement('div'); scene.className='demo-reveal-stage';
+  for(let i=0;i<6;i++){const slice=document.createElement('span');slice.className='demo-reveal-slice';slice.style.setProperty('--i',i);slice.style.setProperty('--pos',`${i*20}%`);scene.append(slice);}
+  const food=document.createElement('div');food.className='demo-reveal-food';food.innerHTML=`<span>${foodFor(winner)}</span><strong>두구두구…</strong>`;scene.append(food);bubble.append(scene);
   const unique = [...new Map(menus.map(m => [m.toLocaleLowerCase('ko'), m])).values()];
   let step = 0;
-  const timer = setInterval(() => { bubble.textContent = `🎲 ${unique[step++ % unique.length]}`; messages.scrollTop = messages.scrollHeight; }, 90);
+  const timer = setInterval(() => { const label=food.querySelector('strong');if(label)label.textContent=unique[step++ % unique.length];messages.scrollTop=messages.scrollHeight; }, 100);
   setTimeout(() => {
-    clearInterval(timer); bubble.textContent = `🎉 오늘의 메뉴는 ${winner}!\n\n모두 같은 결과를 봐요. 맛있게 드세요 🐣`;
-    addArt(bubble, winner, true);
+    clearInterval(timer); scene.classList.add('done');food.querySelector('strong').textContent=`🎉 ${winner}`;
     rolling = false;
     if (!recommendationShown) { recommendationShown = true; recommendRestaurants(); }
-    message('식사 후 오후 1시부터 방문한 식당에 좋아요/싫어요 평가를 남길 수 있어요.');
+    message(`점심 종료 ${settings.end}부터 좋아요 / 보통이다 / 싫어요로 평가할 수 있어요.`);
+    $('#endBtn').hidden=false;
   }, 2800);
+}
+function finishLunch(){
+  if(phase!=='drawn'||!winner)return;
+  phase='ended';$('#endBtn').hidden=true;$('#clockLabel').textContent=`${settings.end} · 점심 종료`;
+  const bubble=message(`오늘의 ${winner}, 어땠나요?`);
+  const options=document.createElement('div');options.className='demo-rating-options';
+  for(const [value,label] of [['LIKE','😍 좋아요'],['NEUTRAL','🙂 보통이다'],['DISLIKE','🙁 싫어요']]){
+    const button=document.createElement('button');button.type='button';button.textContent=label;
+    button.onclick=()=>{myRating=value;options.querySelectorAll('button').forEach(b=>b.classList.toggle('selected',b===button));message(`${label} 평가를 저장했어요!`, 'mine');};
+    options.append(button);
+  }
+  bubble.append(options);
 }
 $('#sendBtn').onclick = () => submit($('#chatInput').value);
 $('#chatInput').onkeydown = event => { if (event.key === 'Enter') submit($('#chatInput').value); };
 $('#advanceBtn').onclick = advance; $('#spinQuick').onclick = spin;
-$('#settingsQuick').onclick = () => { if (phase === 'drawn') { message('오늘의 결과가 정해져 설정을 바꿀 수 없어요.'); return; } if (phase === 'setup') return; phase = 'setup'; $('#clockLabel').textContent = '오전 10:30 · 회사 설정 중'; setControls(); settingsForm(); };
+$('#endBtn').onclick = finishLunch;
+$('#settingsQuick').onclick = () => { if (phase === 'drawn'||phase==='ended') { message('오늘의 결과가 정해져 설정을 바꿀 수 없어요.'); return; } if (phase === 'setup') return; phase = 'setup'; $('#clockLabel').textContent = '회사 설정 중'; setControls(); settingsForm(); };
 $('#resetBtn').onclick = reset; $('#backBtn').onclick = reset;
 $('#plusBtn').onclick = () => $('#chatInput').focus();
 $('#sampleBtn').onclick = () => { if (phase !== 'collect') return; ['김치찌개', '돈까스', '초밥'].forEach(submit); };

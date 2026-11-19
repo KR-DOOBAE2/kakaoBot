@@ -15,14 +15,15 @@ public class MenuRouletteScheduler {
         this.lunchService = lunchService;
     }
 
-    @Scheduled(cron = "0 45 10 * * *", zone = "Asia/Seoul")
-    public void drawAtTenFortyFive() {
+    @Scheduled(cron = "0 0 0 * * *", zone = "Asia/Seoul")
+    public void resetAtMidnight() {
         catchUp();
     }
 
     @Scheduled(fixedDelay = 60000)
     public void catchUp() {
         try {
+            lunchService.resetPreviousDayMenus();
             lunchService.drawDueOpenRounds();
         } catch (Exception e) {
             log.warn("Unable to finish a scheduled menu roulette", e);

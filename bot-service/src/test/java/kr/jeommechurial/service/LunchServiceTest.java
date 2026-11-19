@@ -112,7 +112,7 @@ class LunchServiceTest {
     @Test void sameTeamLinkStartsFreshBallotNextDayAndKeepsSettings() {
         CreatedRound r = service.create("점심", "우리팀", "서울시청", LocalTime.NOON, LocalTime.of(13, 0));
         service.register(r.id(), r.joinToken(), UUID.randomUUID(), null, "매장 · 한식");
-        service = new LunchService(repo, "test-secret", Clock.fixed(Instant.parse("2026-11-16T01:45:00Z"), ZoneOffset.UTC));
+        service = new LunchService(repo, "test-secret", Clock.fixed(Instant.parse("2026-11-16T02:30:00Z"), ZoneOffset.UTC));
         assertEquals("매장 · 한식", service.get(r.id(), r.joinToken()).winner());
         service = new LunchService(repo, "test-secret", Clock.fixed(Instant.parse("2026-11-16T23:00:00Z"), ZoneOffset.UTC));
         RoundView next = service.get(r.id(), r.joinToken());
@@ -120,13 +120,44 @@ class LunchServiceTest {
         assertTrue(next.entries().isEmpty());
         assertNull(next.winner());
         assertEquals("서울시청", next.officeAddress());
-        assertEquals(Instant.parse("2026-11-17T01:45:00Z"), next.drawAt());
+        assertEquals(Instant.parse("2026-11-17T02:30:00Z"), next.drawAt());
+    }
+    @Test void lunchStartControlsCutoffAndMidnightBatchResetsMenus() {
+        CreatedRound r=service.create("점심","우리팀","서울시청",LocalTime.NOON,LocalTime.of(13,0));
+        assertEquals(Instant.parse("2026-11-16T02:30:00Z"),service.get(r.id(),r.joinToken()).drawAt());
+        service.register(r.id(),r.joinToken(),UUID.randomUUID(),null,"국밥");
+        service=new LunchService(repo,"test-secret",Clock.fixed(Instant.parse("2026-11-16T02:30:00Z"),ZoneOffset.UTC));
+        LunchService atCutoff=service;
+        assertThrows(IllegalStateException.class,()->atCutoff.register(r.id(),r.joinToken(),UUID.randomUUID(),null,"냉면"));
+        assertEquals("국밥",service.get(r.id(),r.joinToken()).winner());
+        service=new LunchService(repo,"test-secret",Clock.fixed(Instant.parse("2026-11-16T15:00:00Z"),ZoneOffset.UTC));
+        service.resetPreviousDayMenus();
+        RoundView fresh=service.get(r.id(),r.joinToken());
+        assertTrue(fresh.entries().isEmpty());
+        assertNull(fresh.winner());
+        assertEquals(Instant.parse("2026-11-17T02:30:00Z"),fresh.drawAt());
+    }
+    @Test void satisfactionOpensAtLunchEndAndSupportsThreeChoices() {
+        CreatedRound r=service.create("점심","우리팀","서울시청",LocalTime.NOON,LocalTime.of(13,0));
+        UUID person=UUID.randomUUID();
+        service.register(r.id(),r.joinToken(),person,null,"국밥");
+        service=new LunchService(repo,"test-secret",Clock.fixed(Instant.parse("2026-11-16T03:30:00Z"),ZoneOffset.UTC));
+        service.get(r.id(),r.joinToken());
+        LunchService beforeEnd=service;
+        assertThrows(IllegalStateException.class,()->beforeEnd.rate(r.id(),r.joinToken(),person,Satisfaction.NEUTRAL));
+        service=new LunchService(repo,"test-secret",Clock.fixed(Instant.parse("2026-11-16T04:00:00Z"),ZoneOffset.UTC));
+        assertTrue(service.rate(r.id(),r.joinToken(),person,Satisfaction.NEUTRAL).open());
+        assertEquals(1L,service.satisfaction(r.id(),r.joinToken(),person).counts().get(Satisfaction.NEUTRAL));
+        service.rate(r.id(),r.joinToken(),person,Satisfaction.LIKE);
+        assertNull(service.satisfaction(r.id(),r.joinToken(),person).counts().get(Satisfaction.NEUTRAL));
+        assertEquals(Satisfaction.LIKE,service.satisfaction(r.id(),r.joinToken(),person).mine());
     }
 
     static class FakeRepository implements RoundRepository {
         final Map<UUID, LunchRound> rounds = new HashMap<>();
         final Map<UUID, List<MenuEntry>> entries = new HashMap<>();
         int drawCount;
+        final Map<String,Satisfaction> ratings = new HashMap<>();
         public LunchRound create(UUID owner, String title, String room, String hash, Instant drawAt,
                                  String officeAddress, LocalTime lunchStartTime, LocalTime lunchEndTime) {
             UUID id = UUID.randomUUID();
@@ -135,6 +166,7 @@ class LunchServiceTest {
         }
         public Optional<LunchRound> find(UUID id) { return Optional.ofNullable(rounds.get(id)); }
         public List<LunchRound> findDueOpen(Instant now) { return rounds.values().stream().filter(r -> r.status() == RoundStatus.OPEN && r.drawAt() != null && !r.drawAt().isAfter(now)).toList(); }
+        public List<LunchRound> findBefore(Instant midnight) { return rounds.values().stream().filter(r -> r.drawAt() != null && r.drawAt().isBefore(midnight)).toList(); }
         public List<MenuEntry> entries(UUID id) { return List.copyOf(entries.get(id)); }
         public MenuEntry addEntry(UUID rid, UUID pid, String name, String menu) {
             List<MenuEntry> list = entries.get(rid);
@@ -158,10 +190,10 @@ class LunchServiceTest {
             rounds.put(id, new LunchRound(id, r.ownerId(), r.title(), r.roomName(), r.joinTokenHash(), RoundStatus.CLOSED, r.winner(), version + 1, r.createdAt(), Instant.now(), r.drawAt(), r.officeAddress(), r.lunchStartTime(), r.lunchEndTime()));
             return true;
         }
-        public boolean updateSettings(UUID id, String address, LocalTime start, LocalTime end, long version) {
+        public boolean updateSettings(UUID id, String address, LocalTime start, LocalTime end, Instant nextDrawAt, long version) {
             LunchRound r = rounds.get(id);
             if (r.version() != version) return false;
-            rounds.put(id, new LunchRound(id, r.ownerId(), r.title(), r.roomName(), r.joinTokenHash(), r.status(), r.winner(), version + 1, r.createdAt(), Instant.now(), r.drawAt(), address, start, end));
+            rounds.put(id, new LunchRound(id, r.ownerId(), r.title(), r.roomName(), r.joinTokenHash(), r.status(), r.winner(), version + 1, r.createdAt(), Instant.now(), r.status()==RoundStatus.OPEN?nextDrawAt:r.drawAt(), address, start, end));
             return true;
         }
         public boolean resetForNewDay(UUID id, Instant drawAt, long version) {
@@ -171,5 +203,9 @@ class LunchServiceTest {
             entries.get(id).clear();
             return true;
         }
+        private String ratingKey(UUID id,LocalDate day,UUID participant){return id+"/"+day+"/"+participant;}
+        public void saveSatisfaction(UUID id,LocalDate day,UUID participant,Satisfaction rating){ratings.put(ratingKey(id,day,participant),rating);}
+        public Optional<Satisfaction> satisfaction(UUID id,LocalDate day,UUID participant){return Optional.ofNullable(ratings.get(ratingKey(id,day,participant)));}
+        public Map<Satisfaction,Long> satisfactionCounts(UUID id,LocalDate day){Map<Satisfaction,Long> counts=new EnumMap<>(Satisfaction.class);String prefix=id+"/"+day+"/";ratings.forEach((key,value)->{if(key.startsWith(prefix))counts.merge(value,1L,Long::sum);});return counts;}
     }
 }

@@ -7,4 +7,5 @@ import java.util.UUID;
 
 public interface RoundJpa extends JpaRepository<RoundEntity, UUID> {
     List<RoundEntity> findByStatusAndDrawAtLessThanEqual(String status, Instant drawAt);
+    List<RoundEntity> findByDrawAtLessThan(Instant drawAt);
 }

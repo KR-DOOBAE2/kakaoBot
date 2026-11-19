@@ -7,6 +7,11 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class OfficeLunchServiceTest {
+    @Test void voteClosesThirtyMinutesBeforeLunchStart(){
+        assertTrue(OfficeLunchService.pollOpen(LocalTime.of(11,29,59),LocalTime.NOON));
+        assertFalse(OfficeLunchService.pollOpen(LocalTime.of(11,30),LocalTime.NOON));
+        assertFalse(OfficeLunchService.pollOpen(LocalTime.of(12,0),LocalTime.NOON));
+    }
     @Test void ranksRecentlyDiscoveredThenVotesThenDistanceThenRating(){
         Instant now=Instant.now();
         PlaceCandidate recentFar=new PlaceCandidate("new-far","신규 원거리","", "", "", "",37.5,127,800,now,0,0);
@@ -44,7 +49,7 @@ class OfficeLunchServiceTest {
         public boolean hasVoted(LocalDate date,UUID participant){return false;}
         public void vote(LocalDate date,UUID participant,String id){voteCounts.put(id,voteCounts.getOrDefault(id,0L)+1);}
         public Map<String,Long> votes(LocalDate date){return Map.copyOf(voteCounts);}
-        public void rate(UUID participant,String id,boolean liked){}
+        public void rate(UUID participant,String id,kr.jeommechurial.core.Satisfaction satisfaction){}
         public Optional<String> winner(LocalDate date){return Optional.ofNullable(winner.get(date));}
         public void setWinner(LocalDate date,String id){winner.put(date,id);}
         public void subscribe(String key){}public void unsubscribe(String key){}public List<String> subscribers(){return List.of();}public boolean notificationSent(LocalDate date){return false;}public void markNotificationSent(LocalDate date){}

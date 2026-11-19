@@ -10,5 +10,6 @@ public class RestaurantRatingEntity {
     @Column(name="participant_id",nullable=false) UUID participantId;
     @Column(name="place_id",nullable=false) String placeId;
     @Column(nullable=false) boolean liked;
+    @Column(nullable=false) String sentiment;
     @Column(name="updated_at",nullable=false) Instant updatedAt;
 }

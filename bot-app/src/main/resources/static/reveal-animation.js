@@ -20,25 +20,22 @@
       character.style.setProperty('--row', `${actor.row * 20}%`);
       character.style.setProperty('--delay', `${actor.delay}s`);
       character.setAttribute('aria-hidden', 'true');
-      const pose = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-      pose.setAttribute('class', 'reveal-pose');
-      pose.setAttribute('viewBox', `0 ${actor.row * 256} 256 256`);
-      pose.setAttribute('aria-hidden', 'true');
-      const atlas = document.createElementNS('http://www.w3.org/2000/svg', 'image');
-      atlas.setAttribute('href', '/characters/reveal-sprites.png');
-      atlas.setAttribute('width', '1024');
-      atlas.setAttribute('height', '1536');
-      pose.append(atlas);
+      const frames = Array.from({length: 4}, (_, frame) => `/characters/reveal/${actor.name}-${frame}.png`);
+      for (const src of frames.slice(1)) { const preload = new Image(); preload.src = src; }
+      const pose = document.createElement('img');
+      pose.className = 'reveal-pose';
+      pose.alt = '';
+      pose.src = frames[0];
       character.append(pose);
       scene.append(character);
       if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        pose.setAttribute('viewBox', `768 ${actor.row * 256} 256 256`);
+        pose.src = frames[3];
       } else {
         setTimeout(() => {
           let frame = 0;
           const frames = setInterval(() => {
             frame++;
-            pose.setAttribute('viewBox', `${frame * 256} ${actor.row * 256} 256 256`);
+            pose.src = `/characters/reveal/${actor.name}-${frame}.png`;
             if (frame === 3) clearInterval(frames);
           }, 350);
         }, actor.delay * 1000);

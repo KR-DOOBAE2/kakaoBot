@@ -2,7 +2,7 @@
 .character-reveal::before{content:'';position:absolute;left:15%;right:15%;bottom:9%;height:19%;border-radius:50%;background:#fffaf0;box-shadow:0 6px 0 #d9bb93,0 11px 18px #9e805b44;transform:scale(.2);opacity:0;animation:revealTable .7s ease-out 1.7s forwards}
 .character-reveal::after{content:'✦  ·  ✧';position:absolute;left:38%;top:10%;color:#f0b75e;font-size:22px;letter-spacing:14px;opacity:0;animation:revealSparkle .7s ease-out 2.45s forwards}
 .reveal-actor{position:absolute;display:block;width:27%;aspect-ratio:1;opacity:0;z-index:2;transform-origin:50% 85%;animation-duration:1.45s;animation-delay:var(--delay);animation-fill-mode:forwards;animation-timing-function:ease-out}
-.reveal-pose{display:block;width:100%;height:100%;overflow:hidden;filter:drop-shadow(0 3px 2px #68544488) saturate(1.25) contrast(1.12)}
+.reveal-pose{display:block;width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 3px 2px #68544488) saturate(1.25) contrast(1.12)}
 .reveal-kurimanju{left:0;top:2%;animation-name:revealNod}
 .reveal-chiikawa{left:8%;bottom:0;animation-name:revealShy}
 .reveal-hachiware{left:23%;bottom:8%;animation-name:revealGuide}

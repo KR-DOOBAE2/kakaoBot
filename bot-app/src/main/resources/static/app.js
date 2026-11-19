@@ -198,7 +198,10 @@ async function loadRestaurants() {
       + (result.winningMenu.startsWith('배달 ·') ? ' 배달 가능 여부는 매장에 확인해주세요.' : '');
     $('#restaurantList').innerHTML = result.restaurants.map((p, i) => {
       const safeUrl = /^https:\/\//i.test(p.placeUrl || '') ? escapeHtml(p.placeUrl) : '';
-      return `<div class="restaurant"><div class="restaurant-rank">${i === 0 ? '👑' : i + 1}</div><div class="restaurant-main"><strong>${escapeHtml(p.name)}</strong>${p.recentlyFound ? '<span class="recent">최근 발견</span>' : ''}<p>${escapeHtml(p.address || '주소 정보 없음')}</p><small>${p.distanceMeters}m · 메뉴 언급 ${p.menuMentions}회 · 평가 ${p.ratingScore > 0 ? '+' : ''}${p.ratingScore}</small>${safeUrl ? `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer">지도에서 보기 ↗</a>` : ''}</div></div>`;
+      const priceLabel = p.price
+        ? `✅ ${escapeHtml(p.price.menu)} ${p.price.won.toLocaleString('ko-KR')}원 · ${escapeHtml(p.price.source)} (${escapeHtml(p.price.asOf)} 기준)`
+        : '가격 미확인 · 방문 전 메뉴판 확인';
+      return `<div class="restaurant"><div class="restaurant-rank">${i === 0 ? '👑' : i + 1}</div><div class="restaurant-main"><strong>${escapeHtml(p.name)}</strong>${p.recentlyFound ? '<span class="recent">최근 발견</span>' : ''}<p>${escapeHtml(p.address || '주소 정보 없음')}</p><small>${p.distanceMeters}m · 메뉴 언급 ${p.menuMentions}회 · 평가 ${p.ratingScore > 0 ? '+' : ''}${p.ratingScore}</small><small>${priceLabel}</small>${safeUrl ? `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer">지도에서 보기 ↗</a>` : ''}</div></div>`;
     }).join('');
     restaurantLoaded = true;
   } catch (error) {
@@ -345,4 +348,3 @@ setInterval(() => { if (roundId && joinToken) refresh().catch(() => {}); }, 1500
   history.replaceState({}, '', location.pathname);
   try { await refresh(); } catch (error) { toast(error.message); }
 })();
-

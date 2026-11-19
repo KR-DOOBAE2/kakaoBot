@@ -79,7 +79,11 @@ async function recommendRestaurants(bubble = message('📍 회사 주변 식당�
       const name = document.createElement('strong'); name.textContent = `${index + 1}. ${place.name}`;
       const details = document.createElement('small');
       details.textContent = `${place.distanceMeters}m · ${place.address || '주소 정보 없음'}`;
-      item.append(name, details);
+      const price = document.createElement('small');
+      price.textContent = place.price
+        ? `✅ ${place.price.menu} ${place.price.won.toLocaleString('ko-KR')}원 · ${place.price.source} (${place.price.asOf} 기준)`
+        : '가격 미확인 · 방문 전 메뉴판 확인';
+      item.append(name, details, price);
       if (/^https:\/\//i.test(place.placeUrl || '')) {
         const link = document.createElement('a'); link.href = place.placeUrl;
         link.target = '_blank'; link.rel = 'noopener noreferrer';
@@ -88,7 +92,7 @@ async function recommendRestaurants(bubble = message('📍 회사 주변 식당�
       bubble.append(item);
     }
     const credit = document.createElement('small'); credit.className = 'demo-restaurant-credit';
-    credit.textContent = '시연에서는 신규 여부와 평점이 반영되지 않아요. 자료: ';
+    credit.textContent = '가격 확인 식당 우선 · 2만원 초과 확인 식당 제외 · 신규 여부와 평점은 시연에 반영되지 않아요. 위치: ';
     const attribution = document.createElement('a'); attribution.href = 'https://www.openstreetmap.org/copyright';
     attribution.target = '_blank'; attribution.rel = 'noopener noreferrer';
     attribution.textContent = '© OpenStreetMap contributors'; credit.append(attribution);
@@ -239,4 +243,3 @@ $('#plusBtn').onclick = () => $('#chatInput').focus();
 $('#sampleBtn').onclick = () => { if (phase !== 'collect') return; ['김치찌개', '돈까스', '초밥'].forEach(submit); };
 document.querySelectorAll('[data-menu]').forEach(button => button.onclick = () => submit(button.dataset.menu));
 reset();
-

@@ -10,6 +10,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.time.Instant;
 import java.util.concurrent.ConcurrentHashMap;
@@ -19,12 +20,15 @@ public class RoundRestaurantService {
     private final LunchService rounds;
     private final RestaurantSearch search;
     private final OfficeRepository restaurants;
+    private final MenuPriceLookup prices;
     private final Map<CacheKey, Recommendation> cache = new ConcurrentHashMap<>();
 
-    public RoundRestaurantService(LunchService rounds, RestaurantSearch search, OfficeRepository restaurants) {
+    public RoundRestaurantService(LunchService rounds, RestaurantSearch search, OfficeRepository restaurants,
+                                  MenuPriceLookup prices) {
         this.rounds = rounds;
         this.search = search;
         this.restaurants = restaurants;
+        this.prices = prices;
     }
 
     public Recommendation recommend(UUID roundId, String joinToken) {
@@ -41,11 +45,16 @@ public class RoundRestaurantService {
                 location.latitude(), location.longitude(), 1000, round.winner()));
         List<PlaceCandidate> matching = places.stream()
                 .filter(p -> matches(round.winner(), p.name(), p.category())).toList();
-        List<Restaurant> ranked = matching.stream().map(p -> new Restaurant(
+        List<Restaurant> ranked = matching.stream().map(p -> {
+            var price = prices.find(p.name(), p.address(), round.officeAddress(), round.winner());
+            if (price.isPresent() && price.get().won() > 20_000) return null;
+            return new Restaurant(
                 p.placeId(), p.name(), p.address(), p.category(), p.placeUrl(), p.distanceMeters(),
                 p.newlyDiscovered(), (int) round.entries().stream().map(MenuEntry::menu)
-                        .filter(menu -> matches(menu, p.name(), p.category())).count(), p.score()))
-                .sorted(Comparator.comparing(Restaurant::recentlyFound).reversed()
+                        .filter(menu -> matches(menu, p.name(), p.category())).count(), p.score(), price.orElse(null));
+        }).filter(Objects::nonNull)
+                .sorted(Comparator.comparing((Restaurant p) -> p.price() != null).reversed()
+                        .thenComparing(Comparator.comparing(Restaurant::recentlyFound).reversed())
                         .thenComparing(Comparator.comparingInt(Restaurant::menuMentions).reversed())
                         .thenComparingInt(Restaurant::distanceMeters)
                         .thenComparing(Comparator.comparingInt(Restaurant::ratingScore).reversed())
@@ -88,8 +97,8 @@ public class RoundRestaurantService {
             "fastfood", List.of("패스트푸드", "fastfood", "burger", "햄버거", "샌드위치"));
 
     public record Restaurant(String placeId, String name, String address, String category, String placeUrl,
-                             int distanceMeters, boolean recentlyFound, int menuMentions, int ratingScore) {}
+                             int distanceMeters, boolean recentlyFound, int menuMentions, int ratingScore,
+                             MenuPriceLookup.Price price) {}
     public record Recommendation(String winningMenu, boolean menuMatched, Restaurant topPick, List<Restaurant> restaurants) {}
     private record CacheKey(UUID roundId, Instant drawAt, String address, String winner) {}
 }
-

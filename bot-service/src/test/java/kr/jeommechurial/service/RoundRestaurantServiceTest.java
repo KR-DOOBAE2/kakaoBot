@@ -38,7 +38,7 @@ class RoundRestaurantServiceTest {
                         "https://example.com", 37.5, 127, 200, Instant.now(), 0, 0));
             }
         };
-        var result = new RoundRestaurantService(due, search(), catalog)
+        var result = new RoundRestaurantService(due, search(), catalog, noPrices())
                 .recommend(created.id(), created.joinToken());
         assertFalse(result.menuMatched());
         assertNull(result.topPick());
@@ -48,7 +48,7 @@ class RoundRestaurantServiceTest {
         var rounds = new LunchServiceTest.FakeRepository();
         var lunch = new LunchService(rounds, "secret", Clock.fixed(Instant.parse("2026-11-16T01:00:00Z"), ZoneOffset.UTC));
         var created = lunch.create("점심", "팀", "서울시청", LocalTime.NOON, LocalTime.of(13, 0));
-        var service = new RoundRestaurantService(lunch, search(), new OfficeLunchServiceTest.FakeOfficeRepository());
+        var service = new RoundRestaurantService(lunch, search(), new OfficeLunchServiceTest.FakeOfficeRepository(), noPrices());
         assertThrows(SecurityException.class, () -> service.recommend(created.id(), "wrong"));
         assertThrows(IllegalStateException.class, () -> service.recommend(created.id(), created.joinToken()));
     }
@@ -69,7 +69,7 @@ class RoundRestaurantServiceTest {
                         new PlaceCandidate("new-near", "새 일식집", "주소", "japanese", "", "https://example.com/near", 37.5, 127, 50, now, 0, 0));
             }
         };
-        var service = new RoundRestaurantService(due, search(), catalog);
+        var service = new RoundRestaurantService(due, search(), catalog, noPrices());
         var result = service.recommend(created.id(), created.joinToken());
         assertEquals("new-far", result.topPick().placeId());
         assertEquals(2, result.topPick().menuMentions());
@@ -77,6 +77,8 @@ class RoundRestaurantServiceTest {
         assertEquals(List.of("new-far", "old"), result.restaurants().stream().map(RoundRestaurantService.Restaurant::placeId).toList());
         assertSame(result, service.recommend(created.id(), created.joinToken()));
     }
+
+    private static MenuPriceLookup noPrices() { return (name, address, office, menu) -> java.util.Optional.empty(); }
 
     private static RestaurantSearch search() {
         return new RestaurantSearch() {

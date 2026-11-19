@@ -5,10 +5,12 @@ import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import kr.jeommechurial.core.PlaceSearchResult;
 import kr.jeommechurial.service.RestaurantSearch;
 import kr.jeommechurial.service.RoundRestaurantService;
+import kr.jeommechurial.service.MenuPriceLookup;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -18,10 +20,12 @@ public class DemoRestaurantController {
     private static final int RADIUS_METERS = 1000;
     private static final Duration CACHE_DURATION = Duration.ofMinutes(10);
     private final RestaurantSearch search;
+    private final MenuPriceLookup prices;
     private final Map<Query, CachedResult> cache = new ConcurrentHashMap<>();
 
-    public DemoRestaurantController(RestaurantSearch search) {
+    public DemoRestaurantController(RestaurantSearch search, MenuPriceLookup prices) {
         this.search = search;
+        this.prices = prices;
     }
 
     @PostMapping("/api/demo/restaurants")
@@ -50,19 +54,24 @@ public class DemoRestaurantController {
                 .filter(place -> RoundRestaurantService.matches(
                         query.menu(), place.name(), place.category())).toList();
         List<Place> places = matching.stream()
-                .sorted(Comparator.comparingInt(PlaceSearchResult::distanceMeters))
+                .map(place -> {
+                    var price = prices.find(place.name(), place.address(), query.address(), query.menu());
+                    if (price.isPresent() && price.get().won() > 20_000) return null;
+                    return new Place(place.name(), place.address(), place.distanceMeters(),
+                            place.placeUrl(), price.orElse(null));
+                }).filter(Objects::nonNull)
+                .sorted(Comparator.comparing((Place p) -> p.price() != null).reversed()
+                        .thenComparingInt(Place::distanceMeters))
                 .limit(5)
-                .map(place -> new Place(place.name(), place.address(), place.distanceMeters(),
-                        place.placeUrl()))
                 .toList();
-        return new Recommendation(query.menu(), !matching.isEmpty(), RADIUS_METERS, places);
+        return new Recommendation(query.menu(), !places.isEmpty(), RADIUS_METERS, places);
     }
 
     public record Request(String address, String menu) {}
-    public record Place(String name, String address, int distanceMeters, String placeUrl) {}
+    public record Place(String name, String address, int distanceMeters, String placeUrl,
+                        MenuPriceLookup.Price price) {}
     public record Recommendation(String winningMenu, boolean menuMatched, int radiusMeters,
                                  List<Place> restaurants) {}
     private record Query(String address, String menu) {}
     private record CachedResult(Instant createdAt, Recommendation recommendation) {}
 }
-

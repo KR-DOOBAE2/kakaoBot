@@ -229,19 +229,18 @@ function spin() {
   if (!winner) { message('오늘은 등록된 메뉴가 없어요.'); return; }
   rolling = true; message('#룰렛돌리기', 'mine');
   const bubble = message('', 'result'); bubble.classList.add('roulette');
-  const scene=document.createElement('div'); scene.className='demo-reveal-stage';
-  for(let i=0;i<6;i++){const slice=document.createElement('span');slice.className='demo-reveal-slice';slice.style.setProperty('--i',i);slice.style.setProperty('--pos',`${i*20}%`);scene.append(slice);}
-  const food=document.createElement('div');food.className='demo-reveal-food';food.innerHTML=`<span>${foodFor(winner)}</span><strong>두구두구…</strong>`;scene.append(food);bubble.append(scene);
+  const {scene,label}=createCharacterRevealScene(winner,foodFor(winner),true);
+  bubble.append(scene);
   const unique = [...new Map(menus.map(m => [m.toLocaleLowerCase('ko'), m])).values()];
   let step = 0;
-  const timer = setInterval(() => { const label=food.querySelector('strong');if(label)label.textContent=unique[step++ % unique.length];messages.scrollTop=messages.scrollHeight; }, 100);
+  const timer = setInterval(() => { label.textContent=unique[step++ % unique.length];messages.scrollTop=messages.scrollHeight; }, 100);
   setTimeout(() => {
-    clearInterval(timer); scene.classList.add('done');food.querySelector('strong').textContent=`🎉 ${winner}`;
+    clearInterval(timer); label.textContent=`🎉 ${winner}`;
     rolling = false;
     if (!recommendationShown) { recommendationShown = true; recommendRestaurants(); }
     message(`점심 종료 ${settings.end}부터 좋아요 / 보통이다 / 싫어요로 평가할 수 있어요.`);
     $('#endBtn').hidden=false;
-  }, 2800);
+  }, 3100);
 }
 function finishLunch(){
   if(phase!=='drawn'||!winner)return;

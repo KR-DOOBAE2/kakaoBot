@@ -264,13 +264,13 @@ async function showNaverResults() {
 function animate(data) {
   if (spinning || !data.winner) return;
   spinning = true; revealed = false; renderIllustrations(data); $('#winner').classList.remove('hidden'); $('#winner').classList.add('spinning');
-  const slices = Array.from({length:6},(_,i) => `<span class="reveal-slice" style="--i:${i};--pos:${i*20}%"></span>`).join('');
-  $('#winner').innerHTML = `<div class="reveal-stage" role="img" aria-label="여섯 친구가 수채화 풍경에서 오늘의 점심을 공개해요">${slices}<div class="reveal-food"><span class="reveal-icon">${foodFor(data.winner)}</span><strong class="reveal-label">두구두구…</strong></div></div>`;
+  const {scene,label} = createCharacterRevealScene(data.winner,foodFor(data.winner));
+  $('#winner').replaceChildren(scene);
   const choices = data.candidates.length ? data.candidates : [data.winner];
   let step = 0;
-  const timer = setInterval(() => { const label=$('#winner .reveal-label'); if(label)label.textContent=choices[step++ % choices.length]; }, 100);
+  const timer = setInterval(() => { label.textContent=choices[step++ % choices.length]; }, 100);
   updateCountdown();
-  setTimeout(() => { clearInterval(timer); $('#winner').classList.remove('spinning'); $('#winner').classList.add('revealed'); const label=$('#winner .reveal-label'); if(label)label.textContent=`🎉 ${data.winner}`; spinning = false; revealed = true; renderIllustrations(data); updateCountdown(); }, 2700);
+  setTimeout(() => { clearInterval(timer); $('#winner').classList.remove('spinning'); $('#winner').classList.add('revealed'); label.textContent=`🎉 ${data.winner}`; spinning = false; revealed = true; renderIllustrations(data); updateCountdown(); }, 3100);
 }
 function satisfactionOpenAt(data) {
   if (!data.drawAt || !data.lunchEndTime) return null;

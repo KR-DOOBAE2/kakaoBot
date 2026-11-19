@@ -1,0 +1,24 @@
+.character-reveal{position:relative;isolation:isolate;width:100%;aspect-ratio:16/9;overflow:hidden;border-radius:16px;background:radial-gradient(ellipse at 50% 78%,#fff7dd 0 22%,transparent 56%),linear-gradient(165deg,#dbe9dd,#f7e9cf 65%,#e9d7bf)}
+.character-reveal::before{content:'';position:absolute;left:15%;right:15%;bottom:9%;height:19%;border-radius:50%;background:#fffaf0;box-shadow:0 6px 0 #d9bb93,0 11px 18px #9e805b44;transform:scale(.2);opacity:0;animation:revealTable .7s ease-out 1.7s forwards}
+.character-reveal::after{content:'✦  ·  ✧';position:absolute;left:38%;top:10%;color:#f0b75e;font-size:22px;letter-spacing:14px;opacity:0;animation:revealSparkle .7s ease-out 2.45s forwards}
+.reveal-actor{position:absolute;display:block;width:27%;aspect-ratio:1;opacity:0;z-index:2;transform-origin:50% 85%;animation-duration:1.45s;animation-delay:var(--delay);animation-fill-mode:forwards;animation-timing-function:ease-out}
+.reveal-pose{display:block;width:100%;height:100%;background-image:url('/characters/reveal-sprites.png');background-size:400% 600%;background-position:0 var(--row);background-repeat:no-repeat;animation:revealPose 1.45s steps(1,end) var(--delay) forwards}
+.reveal-kurimanju{left:0;top:2%;animation-name:revealNod}
+.reveal-chiikawa{left:8%;bottom:0;animation-name:revealShy}
+.reveal-hachiware{left:23%;bottom:8%;animation-name:revealGuide}
+.reveal-usagi{right:0;bottom:-1%;animation-name:revealJump}
+.reveal-momonga{right:9%;top:0;animation-name:revealGlide}
+.reveal-rakko{left:38%;bottom:0;animation-name:revealCloche;z-index:3}
+.reveal-meal{position:absolute;left:50%;top:36%;z-index:4;display:grid;justify-items:center;gap:2px;width:48%;opacity:0;transform:translate(-50%,20px) scale(.45);filter:drop-shadow(0 5px 8px #8a69444d);animation:revealDish .65s cubic-bezier(.2,1.5,.5,1) 2.3s forwards}
+.reveal-meal-icon{font-size:clamp(31px,9vw,58px);line-height:1}
+.reveal-meal-label{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:4px 11px;border-radius:30px;background:#fffaf0ed;color:#6a5030;font:clamp(14px,3.7vw,24px) Jua,sans-serif}
+.character-reveal-compact{border-radius:10px}.character-reveal-compact .reveal-meal-icon{font-size:33px}.character-reveal-compact .reveal-meal-label{font-size:15px;padding:2px 7px}
+@keyframes revealPose{0%,24.9%{background-position:0 var(--row)}25%,49.9%{background-position:33.333% var(--row)}50%,74.9%{background-position:66.667% var(--row)}75%,100%{background-position:100% var(--row)}}
+@keyframes revealNod{0%{opacity:0;transform:translate(-14px,5px) rotate(-7deg)}30%{opacity:1;transform:translate(0,0)}65%{transform:rotate(5deg)}100%{opacity:1;transform:rotate(-2deg)}}
+@keyframes revealShy{0%{opacity:0;transform:translate(-27px,24px) scale(.8)}35%{opacity:1;transform:translate(0,0)}70%{transform:translate(-5px,4px) scale(.95)}100%{opacity:1;transform:translate(0,0)}}
+@keyframes revealGuide{0%{opacity:0;transform:translate(-22px,15px)}35%{opacity:1;transform:translate(0,0)}65%{transform:rotate(-7deg)}100%{opacity:1;transform:rotate(0)}}
+@keyframes revealJump{0%{opacity:0;transform:translate(0,42px) scale(.85)}30%{opacity:1;transform:translate(0,-18px) rotate(-8deg)}62%{transform:translate(0,-31px) rotate(7deg)}100%{opacity:1;transform:translate(0,0)}}
+@keyframes revealGlide{0%{opacity:0;transform:translate(50px,-25px) rotate(18deg)}35%{opacity:1;transform:translate(6px,4px) rotate(-8deg)}70%{transform:translate(-7px,-10px) rotate(7deg)}100%{opacity:1;transform:translate(0,0)}}
+@keyframes revealCloche{0%{opacity:0;transform:translate(0,23px)}35%{opacity:1;transform:translate(0,0)}65%{transform:translate(0,-5px)}100%{opacity:1;transform:translate(0,0)}}
+@keyframes revealTable{to{opacity:1;transform:scale(1)}}@keyframes revealDish{to{opacity:1;transform:translate(-50%,0) scale(1)}}@keyframes revealSparkle{to{opacity:1}}
+@media(prefers-reduced-motion:reduce){.reveal-actor,.reveal-pose,.reveal-meal,.character-reveal::before,.character-reveal::after{animation:none!important;opacity:1!important}.reveal-actor{transform:none!important}.reveal-pose{background-position:100% var(--row)}.reveal-meal{transform:translate(-50%,0) scale(1)!important}.character-reveal::before{transform:scale(1)!important}}
